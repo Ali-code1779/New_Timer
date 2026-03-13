@@ -307,30 +307,34 @@ globalAlarm=null
 /* ===============================
 LOAD
 =============================== */
-
-function loadTimers(){
+async function loadTimers(){
 
 try{
 
-timers=JSON.parse(localStorage.getItem("timers")||"[]")
+const branch = localStorage.getItem("branch")
 
-timers.forEach(t=>{
+const res = await fetch(
+SERVER+"?action=sync&branch="+branch
+)
 
-const prep=DateEngine.toTimestamp(t.preparedTime)
-const exp=DateEngine.toTimestamp(t.expirationTime)
+const data = await res.json()
 
-if(prep) t.preparedTime=prep
-if(exp) t.expirationTime=exp
+timers = data.timers || []
 
-})
+localStorage.setItem(
+"timers",
+JSON.stringify(timers)
+)
 
-}catch{
+}catch(err){
 
-timers=[]
+console.error(err)
+
+timers = JSON.parse(
+localStorage.getItem("timers") || "[]"
+)
 
 }
-
-timers.sort((a,b)=>a.expirationTime-b.expirationTime)
 
 renderSections()
 renderTable()
