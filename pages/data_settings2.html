@@ -178,7 +178,11 @@ const DEVICE_ID = localStorage.getItem("deviceId") || crypto.randomUUID()
 localStorage.setItem("deviceId",DEVICE_ID)
 
 /* BroadcastChannel للـ push بين الأجهزة */
+const SERVER =
+localStorage.getItem("https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec") ||
+"https://script.google.com/macros/s/XXXXXXXX/exec"
 
+  
 const channel = new BroadcastChannel("restaurant_cloud")
 /* ===============================
 BROADCAST LISTENER
