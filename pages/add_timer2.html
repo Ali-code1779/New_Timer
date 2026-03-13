@@ -446,7 +446,19 @@ document.dispatchEvent(new Event("dataSynced"))
 
 }
 
+async function uploadTimer(timer){
 
+await fetch(SERVER,{
+method:"POST",
+body:JSON.stringify({
+action:"addTimer",
+branch:localStorage.getItem("branch"),
+timer:timer
+})
+})
+
+}
+  
 /* MESSAGES */
 
 function showSuccess(msg){
