@@ -1,0 +1,650 @@
+<style>
+
+.print-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+animation:fadeIn .3s ease
+}
+
+@keyframes fadeIn{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:translateY(0)}
+}
+
+.print-options-form{
+max-width:700px;
+margin:20px auto;
+background:#fff;
+padding:25px;
+border-radius:12px;
+box-shadow:0 4px 12px rgba(0,0,0,.08)
+}
+
+.print-options-form label{
+font-weight:600;
+cursor:pointer
+}
+
+.print-options-form button{
+font-weight:600;
+border-radius:8px;
+border:none;
+padding:9px 24px;
+margin:5px;
+background:#0d6efd;
+color:#fff
+}
+
+.print-options-form button.cancel{
+background:#dc3545
+}
+
+.section-select{
+margin-bottom:15px
+}
+
+.sections-buttons{
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+margin-bottom:15px
+}
+
+.section-btn{
+border:none;
+padding:7px 14px;
+border-radius:8px;
+cursor:pointer;
+background:#f1f3f5;
+font-weight:600;
+border:1px solid #dee2e6
+}
+
+.section-btn.active{
+background:#0d6efd;
+color:white
+}
+
+</style>
+
+
+
+<div class="print-wrapper">
+
+<h2 class="text-center mb-4" data-lang="title">Print Options</h2>
+
+<form class="print-options-form">
+
+<div class="sections-buttons" id="sectionsButtons"></div>
+
+<div class="section-select">
+
+<label data-lang="chooseSection">Choose Section</label>
+
+<select id="sectionSelect" class="form-select" style="max-width:240px"></select>
+
+</div>
+
+<label>
+<input type="radio" name="printOption" value="all" checked>
+<span data-lang="printAll">Print Full Timers Table</span>
+</label>
+
+<br><br>
+
+<label>
+<input type="radio" name="printOption" value="active">
+<span data-lang="printActive">Print Active Timers</span>
+</label>
+
+<br><br>
+
+<label>
+<input type="radio" name="printOption" value="labels">
+<span data-lang="printLabels">Print Product Labels</span>
+</label>
+
+<br><br>
+
+<label>
+<input type="radio" name="printOption" value="kitchen">
+<span data-lang="printKitchen">Print Kitchen Ticket</span>
+</label>
+
+<br><br>
+
+<label>
+<input type="radio" name="printOption" value="excel">
+<span data-lang="printExcel">Export Excel</span>
+</label>
+
+<div style="text-align:center;margin-top:20px">
+
+<button type="button" onclick="executePrintOptions()" data-lang="print">Print</button>
+
+<button type="button" class="cancel" onclick="history.back()" data-lang="cancel">Cancel</button>
+
+</div>
+
+</form>
+
+</div>
+
+
+
+<script>
+
+(function(){
+
+let timers=[]
+let activeSection="all"
+
+
+/* اللغة */
+
+function getLang(){
+return localStorage.getItem("appLang") || "ar"
+}
+
+let LANG=getLang()
+
+document.documentElement.dir = LANG==="ar"?"rtl":"ltr"
+
+
+
+/* الترجمة */
+
+const langPack={
+
+ar:{
+title:"خيارات الطباعة",
+chooseSection:"اختر القسم",
+printAll:"طباعة جدول المؤقتات",
+printActive:"المؤقتات النشطة",
+printLabels:"ملصقات المنتجات",
+printKitchen:"تذكرة المطبخ",
+printExcel:"تصدير Excel",
+print:"طباعة",
+cancel:"إلغاء",
+restaurant:"المطعم",
+section:"القسم",
+product:"المنتج",
+duration:"المدة",
+qty:"الكمية",
+prepared:"التجهيز",
+expires:"الانتهاء",
+printed:"وقت الطباعة",
+report:"تقرير المؤقتات",
+all:"كل الأقسام"
+},
+
+en:{
+title:"Print Options",
+chooseSection:"Choose Section",
+printAll:"Print Timers Table",
+printActive:"Active Timers",
+printLabels:"Product Labels",
+printKitchen:"Kitchen Ticket",
+printExcel:"Export Excel",
+print:"Print",
+cancel:"Cancel",
+restaurant:"Restaurant",
+section:"Section",
+product:"Product",
+duration:"Duration",
+qty:"Qty",
+prepared:"Prepared",
+expires:"Expires",
+printed:"Printed",
+report:"Timers Report",
+all:"All Sections"
+}
+
+}
+
+
+
+/* تحديث اللغة */
+
+function applyLang(){
+
+LANG=getLang()
+
+document.documentElement.dir = LANG==="ar"?"rtl":"ltr"
+
+document.querySelectorAll("[data-lang]").forEach(el=>{
+
+const key=el.dataset.lang
+
+if(langPack[LANG][key])
+el.textContent=langPack[LANG][key]
+
+})
+
+}
+
+
+
+/* رقم المطعم */
+
+const STORE_NAME = localStorage.getItem("storeName") || "Restaurant"
+const STORE_NUMBER = localStorage.getItem("storeNumber") || "000"
+
+
+
+/* تحميل المؤقتات */
+
+function loadTimers(){
+
+try{
+timers=JSON.parse(localStorage.getItem("timers")||"[]")
+}catch{
+timers=[]
+}
+
+renderSections()
+
+}
+
+
+
+/* الأقسام */
+
+function getSections(){
+
+const set=new Set()
+
+timers.forEach(t=>{
+set.add(t.section || t.Section || "Other")
+})
+
+return [...set]
+
+}
+
+
+
+function renderSections(){
+
+const select=document.getElementById("sectionSelect")
+const btns=document.getElementById("sectionsButtons")
+
+select.innerHTML=`<option value="all">${langPack[LANG].all}</option>`
+
+btns.innerHTML=""
+
+createSectionButton("all",langPack[LANG].all)
+
+getSections().forEach(sec=>{
+
+select.innerHTML+=`<option value="${sec}">${sec}</option>`
+
+createSectionButton(sec,sec)
+
+})
+
+}
+
+
+
+/* زر القسم */
+
+function createSectionButton(val,label){
+
+const btn=document.createElement("button")
+
+btn.type="button"
+btn.className="section-btn"
+btn.innerText=label
+
+btn.onclick=()=>{
+
+activeSection=val
+
+document.getElementById("sectionSelect").value=val
+
+document.querySelectorAll(".section-btn").forEach(b=>b.classList.remove("active"))
+
+btn.classList.add("active")
+
+}
+
+document.getElementById("sectionsButtons").appendChild(btn)
+
+}
+
+
+
+/* فلترة */
+
+function filterBySection(data){
+
+if(activeSection==="all") return data
+
+return data.filter(t=>(t.section||t.Section)===activeSection)
+
+}
+
+
+
+/* التاريخ المختصر */
+
+function shortTime(ts){
+
+const locale=LANG==="ar"?"ar-EG":"en-US"
+
+return new Date(ts).toLocaleTimeString(locale,{
+hour:"2-digit",
+minute:"2-digit"
+})
+
+}
+
+
+
+/* التاريخ الكامل */
+
+function fullDate(ts){
+
+const locale=LANG==="ar"?"ar-EG":"en-US"
+
+return new Date(ts).toLocaleString(locale)
+
+}
+
+
+
+/* Header */
+
+function printHeader(section){
+
+return `
+
+<style>
+
+body{
+font-family:'Cairo','Segoe UI';
+padding:25px
+}
+
+table{
+width:100%;
+border-collapse:collapse
+}
+
+th{
+background:#0d6efd;
+color:white;
+padding:10px
+}
+
+td{
+border:1px solid #ddd;
+padding:8px;
+text-align:center
+}
+
+.label{
+width:250px;
+height:120px;
+border:2px solid #0d6efd;
+border-radius:10px;
+padding:10px;
+margin:10px;
+display:inline-block;
+font-size:13px
+}
+
+.ticket{
+border:2px dashed #000;
+padding:15px;
+margin-bottom:15px
+}
+
+</style>
+
+<div style="text-align:center;margin-bottom:20px">
+
+<h2>${langPack[LANG].report}</h2>
+
+<div>${STORE_NAME} - ${STORE_NUMBER}</div>
+
+<div>${langPack[LANG].section}: ${section}</div>
+
+<div>${langPack[LANG].printed}: ${fullDate(Date.now())}</div>
+
+</div>
+
+`
+
+}
+
+
+
+/* تنفيذ الطباعة */
+
+window.executePrintOptions=function(){
+
+const opt=document.querySelector('input[name="printOption"]:checked')
+
+if(!opt) return
+
+let data=filterBySection(timers)
+
+if(opt.value==="active")
+data=data.filter(t=>t.expirationTime>Date.now())
+
+if(opt.value==="labels") return printLabels(data)
+
+if(opt.value==="kitchen") return printKitchen(data)
+
+if(opt.value==="excel") return exportExcel(data)
+
+printTable(data)
+
+}
+
+
+
+/* Table */
+
+function printTable(data){
+
+let html=printHeader(activeSection)
+
+html+=`
+
+<table>
+
+<tr>
+<th>${langPack[LANG].section}</th>
+<th>${langPack[LANG].product}</th>
+<th>${langPack[LANG].duration}</th>
+<th>${langPack[LANG].qty}</th>
+<th>${langPack[LANG].prepared}</th>
+<th>${langPack[LANG].expires}</th>
+</tr>
+`
+
+data.forEach(t=>{
+
+html+=`
+
+<tr>
+<td>${t.section}</td>
+<td>${t.product}</td>
+<td>${t.duration}</td>
+<td>${t.quantity}</td>
+<td>${fullDate(t.preparedTime)}</td>
+<td>${fullDate(t.expirationTime)}</td>
+</tr>
+
+`
+
+})
+
+html+="</table>"
+
+const win=window.open("","","width=1000,height=700")
+
+win.document.write(html)
+
+win.print()
+
+}
+
+
+
+/* Labels */
+
+function printLabels(data){
+
+let html=printHeader(activeSection)
+
+data.forEach(t=>{
+
+for(let i=0;i<t.quantity;i++){
+
+html+=`
+
+<div class="label">
+
+🍔 <b>${t.product}</b><br>
+
+📦 ${t.section}<br><br>
+
+⏱ PRO.: ${shortTime(t.preparedTime)}<br>
+
+⌛ EXP.: ${shortTime(t.expirationTime)}
+
+</div>
+
+`
+
+}
+
+})
+
+const win=window.open("","","width=700,height=900")
+
+win.document.write(html)
+
+win.print()
+
+}
+
+
+
+/* Kitchen Ticket */
+
+function printKitchen(data){
+
+let html=printHeader(activeSection)
+
+data.forEach(t=>{
+
+html+=`
+
+<div class="ticket">
+
+<h3>🍔 ${t.product}</h3>
+
+📦 ${t.section}<br>
+
+🔢 ${t.quantity}<br><br>
+
+⏱ PRO.: ${shortTime(t.preparedTime)}<br>
+
+⌛ EXP.: ${shortTime(t.expirationTime)}
+
+</div>
+
+`
+
+})
+
+const win=window.open("","","width=500,height=800")
+
+win.document.write(html)
+
+win.print()
+
+}
+
+
+
+/* Excel */
+
+function exportExcel(data){
+
+let table=`
+
+<table border="1">
+
+<tr style="background:#0d6efd;color:white">
+
+<th>${langPack[LANG].restaurant}</th>
+<th>${langPack[LANG].section}</th>
+<th>${langPack[LANG].product}</th>
+<th>${langPack[LANG].duration}</th>
+<th>${langPack[LANG].qty}</th>
+<th>PRO</th>
+<th>EXP</th>
+
+</tr>
+`
+
+data.forEach(t=>{
+
+table+=`
+
+<tr>
+
+<td>${STORE_NAME} ${STORE_NUMBER}</td>
+<td>${t.section}</td>
+<td>${t.product}</td>
+<td>${t.duration}</td>
+<td>${t.quantity}</td>
+<td>${shortTime(t.preparedTime)}</td>
+<td>${shortTime(t.expirationTime)}</td>
+
+</tr>
+
+`
+
+})
+
+table+="</table>"
+
+const blob=new Blob([table],{type:"application/vnd.ms-excel"})
+
+const link=document.createElement("a")
+
+link.href=URL.createObjectURL(blob)
+
+link.download="timers_report.xls"
+
+link.click()
+
+}
+
+
+
+/* تحديث اللغة اذا تغيرت */
+
+window.addEventListener("storage",()=>{
+
+applyLang()
+renderSections()
+
+})
+
+
+document.addEventListener("pageLoaded",()=>{
+
+applyLang()
+loadTimers()
+
+})
+
+})();
+</script>

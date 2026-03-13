@@ -1,0 +1,747 @@
+<style>
+
+.reports-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+animation:fadeIn .4s ease
+}
+
+@keyframes fadeIn{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:translateY(0)}
+}
+
+.stats-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+gap:15px;
+margin-bottom:25px
+}
+
+.stat-card{
+background:#fff;
+padding:18px;
+border-radius:12px;
+border-left:6px solid #0d6efd
+}
+
+.stat-title{
+font-size:.9rem;
+color:#6b7280
+}
+
+.stat-value{
+font-size:24px;
+font-weight:700
+}
+
+.chart-box{
+background:#fff;
+padding:20px;
+border-radius:12px;
+margin-bottom:25px;
+border:1px solid #e5e7eb
+}
+
+.table-box{
+background:#fff;
+border-radius:12px;
+overflow:auto;
+border:1px solid #e5e7eb
+}
+
+.table-box table{
+width:100%;
+border-collapse:collapse
+}
+
+.table-box th{
+background:#0d6efd;
+color:#fff;
+padding:10px;
+text-align:center
+}
+
+.table-box td{
+padding:8px;
+border-top:1px solid #eee;
+text-align:center
+}
+
+.export-toolbar{
+display:flex;
+gap:10px;
+margin-bottom:20px
+}
+
+.ai-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+gap:15px;
+margin-bottom:25px
+}
+
+.ai-card{
+background:#fff;
+padding:16px;
+border-radius:10px;
+border-left:6px solid #22c55e
+}
+
+.ai-title{
+font-size:.85rem;
+color:#6b7280
+}
+
+.ai-value{
+font-size:18px;
+font-weight:700
+}
+
+</style>
+
+
+<div class="reports-wrapper">
+
+<h2>📊 Reports Dashboard</h2>
+
+<div class="export-toolbar">
+
+<button class="btn btn-success" id="exportExcel">📥 Excel</button>
+
+<button class="btn btn-info" id="exportCSV">📄 CSV</button>
+
+<button class="btn btn-dark" id="exportJSON">🧾 JSON</button>
+
+<button class="btn btn-primary" id="refreshReports">🔄 Refresh</button>
+
+</div>
+
+
+<div class="stats-grid" id="statsGrid"></div>
+
+
+<div class="chart-box">
+
+<h3>🤖 AI Restaurant Analytics</h3>
+
+<div class="ai-grid" id="aiAnalytics"></div>
+
+</div>
+
+
+<div class="chart-box">
+
+<h3>🔮 AI Predictions</h3>
+
+<div class="ai-grid" id="aiPredictions"></div>
+
+</div>
+
+<div class="chart-box">
+
+<h3>📈 Profit / Waste Analysis</h3>
+
+<div class="ai-grid" id="profitWaste"></div>
+
+</div>
+
+
+<div class="chart-box">
+
+<h3>🧠 AI Production Suggestions</h3>
+
+<div class="ai-grid" id="productionAI"></div>
+
+</div>
+
+
+<div class="chart-box">
+
+<h3>📊 Waste Heatmap</h3>
+
+<canvas id="wasteChart"></canvas>
+
+</div>
+
+
+
+<div class="chart-box">
+<canvas id="sectionChart"></canvas>
+</div>
+
+<div class="chart-box">
+<canvas id="dailyChart"></canvas>
+</div>
+
+
+<div class="table-box">
+
+<table>
+
+<thead>
+<tr>
+<th>Section</th>
+<th>Product</th>
+<th>Qty</th>
+<th>Time Left</th>
+<th>Prepared</th>
+<th>Expires</th>
+</tr>
+</thead>
+
+<tbody id="reportsTable"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+(function(){
+
+/* ===============================
+LOAD DATA
+=============================== */
+
+function getData(){
+
+return{
+
+products:JSON.parse(localStorage.getItem("products")||"[]"),
+timers:JSON.parse(localStorage.getItem("timers")||"[]"),
+alerts:JSON.parse(localStorage.getItem("alertLogs")||"[]"),
+sound:JSON.parse(localStorage.getItem("soundSettings")||"{}")
+
+}
+
+}
+
+
+/* ===============================
+FORMAT
+=============================== */
+
+function formatRemaining(ms){
+
+if(ms<=0) return "Expired"
+
+let s=Math.floor(ms/1000)
+
+let h=Math.floor(s/3600)
+
+let m=Math.floor((s%3600)/60)
+
+return `${h}h ${m}m`
+
+}
+
+function formatDate(ts){
+
+if(!ts) return ""
+
+return DateEngine.display(ts)
+
+}
+
+/* ===============================
+STATS
+=============================== */
+
+function renderStats(data){
+
+const timers=data.timers
+
+const now=Date.now()
+
+const active=timers.filter(t=>t.expirationTime>now).length
+
+const expired=timers.filter(t=>t.expirationTime<=now).length
+
+const sections=[...new Set(timers.map(t=>t.section))]
+
+document.getElementById("statsGrid").innerHTML=`
+
+<div class="stat-card">
+<div class="stat-title">Products</div>
+<div class="stat-value">${data.products.length}</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-title">Sections</div>
+<div class="stat-value">${sections.length}</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-title">Active Timers</div>
+<div class="stat-value">${active}</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-title">Expired</div>
+<div class="stat-value">${expired}</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-title">Alerts</div>
+<div class="stat-value">${data.alerts.length}</div>
+</div>
+
+`
+
+}
+
+
+/* ===============================
+AI ANALYTICS
+=============================== */
+
+function runAIAnalytics(data){
+
+const timers=data.timers
+const alerts=data.alerts
+
+let expiredMap={}
+
+timers.forEach(t=>{
+if(t.expirationTime<Date.now()){
+expiredMap[t.section]=(expiredMap[t.section]||0)+1
+}
+})
+
+let mostExpired=Object.keys(expiredMap)
+.sort((a,b)=>expiredMap[b]-expiredMap[a])[0] || "-"
+
+
+let soldMap={}
+
+alerts.forEach(a=>{
+if(a.type==="sell"){
+soldMap[a.product]=(soldMap[a.product]||0)+1
+}
+})
+
+let fastest=Object.keys(soldMap)
+.sort((a,b)=>soldMap[b]-soldMap[a])[0] || "-"
+
+
+let rotationMap={}
+
+timers.forEach(t=>{
+const diff=(t.expirationTime-t.preparedTime)
+rotationMap[t.product]=(rotationMap[t.product]||0)+diff
+})
+
+let slowest=Object.keys(rotationMap)
+.sort((a,b)=>rotationMap[b]-rotationMap[a])[0] || "-"
+
+
+let disposed=alerts.filter(a=>a.type==="dispose").length
+let sold=alerts.filter(a=>a.type==="sell").length
+
+let wasteRate = sold+disposed===0 ? 0 :
+Math.round((disposed/(sold+disposed))*100)
+
+let efficiency=100-wasteRate
+
+document.getElementById("aiAnalytics").innerHTML=`
+
+<div class="ai-card">
+<div class="ai-title">Most Expired Section</div>
+<div class="ai-value">${mostExpired}</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">Fastest Selling Product</div>
+<div class="ai-value">${fastest}</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">Slowest Rotation Item</div>
+<div class="ai-value">${slowest}</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">Waste Rate</div>
+<div class="ai-value">${wasteRate}%</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">Kitchen Efficiency</div>
+<div class="ai-value">${efficiency}%</div>
+</div>
+
+`
+
+}
+
+
+/* ===============================
+AI PREDICTIONS
+=============================== */
+
+function runPredictions(data){
+
+const timers=data.timers
+
+const now=Date.now()
+
+let today=[]
+let tomorrow=[]
+
+timers.forEach(t=>{
+
+let diff=(t.expirationTime-now)
+
+if(diff<86400000 && diff>0){
+today.push(t.product)
+}
+
+if(diff<172800000 && diff>86400000){
+tomorrow.push(t.product)
+}
+
+})
+
+let wastePrediction=today.length
+
+let recommended=Math.max(0,10-wastePrediction)
+
+document.getElementById("aiPredictions").innerHTML=`
+
+<div class="ai-card">
+<div class="ai-title">Products expiring today</div>
+<div class="ai-value">${today.slice(0,3).join(", ") || "-"}</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">At risk tomorrow</div>
+<div class="ai-value">${tomorrow.slice(0,3).join(", ") || "-"}</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">Waste prediction</div>
+<div class="ai-value">${wastePrediction}</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">Recommended production</div>
+<div class="ai-value">${recommended}</div>
+</div>
+
+`
+
+}
+
+/* ===============================
+PROFIT / WASTE ANALYSIS
+=============================== */
+
+function runProfitWaste(data){
+
+const alerts=data.alerts
+
+let sold=alerts.filter(a=>a.type==="sell").length
+let disposed=alerts.filter(a=>a.type==="dispose").length
+
+let revenue = sold * 10      // تقدير سعر المنتج
+let wasteCost = disposed * 10
+
+let profit = revenue - wasteCost
+
+document.getElementById("profitWaste").innerHTML=`
+
+<div class="ai-card">
+<div class="ai-title">Revenue</div>
+<div class="ai-value">$${revenue}</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">Waste Cost</div>
+<div class="ai-value">$${wasteCost}</div>
+</div>
+
+<div class="ai-card">
+<div class="ai-title">Net Profit</div>
+<div class="ai-value">$${profit}</div>
+</div>
+
+`
+
+}
+
+/* ===============================
+AI PRODUCTION SUGGESTIONS
+=============================== */
+
+function runProductionAI(data){
+
+const timers=data.timers
+const alerts=data.alerts
+
+let soldMap={}
+
+alerts.forEach(a=>{
+if(a.type==="sell"){
+soldMap[a.product]=(soldMap[a.product]||0)+1
+}
+})
+
+let suggestions=[]
+
+Object.keys(soldMap).forEach(p=>{
+
+if(soldMap[p] > 5){
+suggestions.push(`Increase production of ${p}`)
+}
+
+})
+
+if(!suggestions.length){
+suggestions.push("Production levels are balanced")
+}
+
+document.getElementById("productionAI").innerHTML=
+suggestions.map(s=>`
+<div class="ai-card">
+<div class="ai-title">Suggestion</div>
+<div class="ai-value">${s}</div>
+</div>
+`).join("")
+
+}
+
+/* ===============================
+WASTE HEATMAP
+=============================== */
+
+let wasteChart
+
+function renderWasteChart(data){
+
+const alerts=data.alerts
+
+const map={}
+
+alerts.forEach(a=>{
+
+if(a.type==="dispose"){
+map[a.product]=(map[a.product]||0)+1
+}
+
+})
+
+if(wasteChart) wasteChart.destroy()
+
+wasteChart=new Chart(
+document.getElementById("wasteChart"),
+{
+type:"bar",
+data:{
+labels:Object.keys(map),
+datasets:[
+{
+label:"Waste Count",
+data:Object.values(map)
+}
+]
+}
+})
+
+}
+/* ===============================
+CHARTS
+=============================== */
+let sectionChart
+
+function renderSectionChart(timers){
+
+const map={}
+
+timers.forEach(t=>{
+map[t.section]=(map[t.section]||0)+1
+})
+
+if(sectionChart) sectionChart.destroy()
+
+sectionChart=new Chart(
+document.getElementById("sectionChart"),
+{
+type:"bar",
+data:{
+labels:Object.keys(map),
+datasets:[{data:Object.values(map)}]
+}
+})
+
+}
+
+let dailyChart
+
+function renderDailyChart(timers){
+
+const map={}
+
+timers.forEach(t=>{
+const key = DateEngine.display(t.preparedTime)
+map[key]=(map[key]||0)+1
+})
+
+if(dailyChart) dailyChart.destroy()
+
+dailyChart=new Chart(
+document.getElementById("dailyChart"),
+{
+type:"line",
+data:{
+labels:Object.keys(map),
+datasets:[{data:Object.values(map)}]
+}
+})
+
+}
+
+
+/* ===============================
+TABLE
+=============================== */
+
+function renderTable(timers){
+
+const body=document.getElementById("reportsTable")
+
+body.innerHTML=""
+
+timers.forEach(t=>{
+
+const tr=document.createElement("tr")
+
+tr.innerHTML=`
+
+<td>${t.section}</td>
+<td>${t.product}</td>
+<td>${t.quantity}</td>
+<td>${formatRemaining(t.expirationTime-Date.now())}</td>
+<td>${formatDate(t.preparedTime)}</td>
+<td>${formatDate(t.expirationTime)}</td>
+
+`
+
+body.appendChild(tr)
+
+})
+
+}
+
+
+/* ===============================
+EXPORT
+=============================== */
+
+function download(blob,name){
+
+const url=URL.createObjectURL(blob)
+const a=document.createElement("a")
+a.href=url
+a.download=name
+a.click()
+
+}
+
+function exportJSON(data){
+
+download(
+new Blob([JSON.stringify(data,null,2)]),
+"report.json"
+)
+
+}
+function exportCSV(timers){
+
+let csv="Section,Product,Qty,Prepared,Expiry\n"
+
+timers.forEach(t=>{
+csv+=`${t.section},${t.product},${t.quantity},${DateEngine.display(t.preparedTime)},${DateEngine.display(t.expirationTime)}\n`
+})
+
+download(new Blob([csv]),"report.csv")
+
+}
+
+function exportExcel(timers){
+
+let html="<table><tr><th>Section</th><th>Product</th><th>Qty</th></tr>"
+
+timers.forEach(t=>{
+html+=`<tr><td>${t.section}</td><td>${t.product}</td><td>${t.quantity}</td></tr>`
+})
+
+html+="</table>"
+
+download(new Blob([html]),"report.xls")
+
+}
+
+
+/* ===============================
+BUILD REPORT
+=============================== */
+function buildReports(){
+
+const data=getData()
+
+data.timers = data.timers || []
+data.products = data.products || []
+data.alerts = data.alerts || []
+
+renderStats(data)
+
+runAIAnalytics(data)
+
+runPredictions(data)
+
+runProfitWaste(data)
+
+runProductionAI(data)
+
+renderSectionChart(data.timers)
+
+renderDailyChart(data.timers)
+
+renderWasteChart(data)
+
+renderTable(data.timers)
+
+localStorage.setItem(
+"reportsCache",
+JSON.stringify(data)
+)
+
+}
+
+
+/* ===============================
+EVENTS
+=============================== */
+
+document.getElementById("refreshReports").onclick=buildReports
+
+document.getElementById("exportJSON").onclick=()=>exportJSON(getData())
+
+document.getElementById("exportCSV").onclick=()=>exportCSV(getData().timers)
+
+document.getElementById("exportExcel").onclick=()=>exportExcel(getData().timers)
+
+
+/* ===============================
+INIT
+=============================== */
+
+document.addEventListener("pageLoaded",buildReports)
+
+})();
+</script>

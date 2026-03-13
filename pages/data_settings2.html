@@ -1,0 +1,637 @@
+<style>
+
+.data-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+max-width:900px;
+margin:auto
+}
+
+.data-card{
+background:#fff;
+border-radius:12px;
+padding:25px;
+box-shadow:0 4px 12px rgba(0,0,0,.08);
+margin-bottom:20px
+}
+
+.data-title{
+font-size:20px;
+font-weight:700;
+margin-bottom:15px
+}
+
+.data-row{
+margin-bottom:15px
+}
+
+.data-row label{
+display:block;
+font-weight:600;
+margin-bottom:5px
+}
+
+.data-row input{
+width:100%;
+padding:8px;
+border-radius:6px;
+border:1px solid #ccc
+}
+
+.btn{
+padding:10px 16px;
+border:none;
+border-radius:8px;
+cursor:pointer;
+font-weight:700;
+margin-right:6px;
+margin-top:6px
+}
+
+.btn-create{background:#9333ea;color:#fff}
+.btn-cloud{background:#16a34a;color:#fff}
+.btn-sync{background:#0d6efd;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-admin{background:#111827;color:#fff}
+
+.status-box{
+padding:10px;
+border-radius:8px;
+font-weight:600;
+margin-top:15px
+}
+
+.status-ok{background:#dcfce7;color:#166534}
+.status-error{background:#fee2e2;color:#991b1b}
+.status-info{background:#e0f2fe;color:#075985}
+
+.panel{
+margin-top:20px;
+padding:15px;
+border-radius:10px;
+background:#f8fafc;
+border:1px solid #e5e7eb
+}
+
+.panel h3{
+margin-bottom:10px
+}
+
+.panel ul{
+padding-left:18px
+}
+
+</style>
+
+
+<div class="data-wrapper">
+
+<div class="data-card">
+
+<div class="data-title">☁️ <span data-lang="title">Restaurant Cloud Control Center</span></div>
+
+<div class="data-row">
+<label data-lang="branch">Branch Code</label>
+<input id="branchCode" placeholder="101">
+</div>
+
+<div class="data-row">
+<label data-lang="url">Web App URL</label>
+<input id="scriptUrl">
+</div>
+
+
+<button class="btn btn-create" id="createDB" data-lang="createDB">
+📂 Create Branch Database
+</button>
+
+<button class="btn btn-cloud" id="startCloud" data-lang="startCloud">
+🚀 Start Cloud
+</button>
+
+<button class="btn btn-sync" id="uploadNow" data-lang="upload">
+⬆ Upload Now
+</button>
+
+<button class="btn btn-sync" id="downloadNow" data-lang="download">
+⬇ Download Now
+</button>
+
+<button class="btn btn-sync" id="checkServer" data-lang="check">
+🌐 Check Server
+</button>
+
+<button class="btn btn-danger" id="clearQueue" data-lang="clear">
+🧹 Clear Queue
+</button>
+
+<button class="btn btn-admin" id="deleteBranch" data-lang="delete">
+❌ Delete Branch Database
+</button>
+
+<div id="syncStatus" class="status-box status-info">
+Cloud engine idle
+</div>
+
+</div>
+
+
+<div class="panel">
+<h3>📊 Central Dashboard</h3>
+<ul id="dashboardList"></ul>
+</div>
+
+
+<div class="panel">
+<h3>🍔 Kitchen Realtime Feed</h3>
+<ul id="kitchenFeed"></ul>
+</div>
+
+
+<div class="panel">
+<h3>🧠 AI Expiry Prediction</h3>
+<div id="aiPrediction">--</div>
+</div>
+
+
+</div>
+
+
+<script>
+(function(){
+
+/* ===============================
+CONFIG
+=============================== */
+
+const SECRET="RESTAURANTS_ALARM_SYSTEM_DB1"
+
+const ADMIN_PASS="Ali@1779"
+
+const DEFAULT_SERVER="https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec"
+
+let SERVER=""
+let lastSync=0
+let syncLoop=null
+let syncRunning=false
+
+const DEVICE_ID = localStorage.getItem("deviceId") || crypto.randomUUID()
+localStorage.setItem("deviceId",DEVICE_ID)
+
+/* BroadcastChannel للـ push بين الأجهزة */
+
+const channel = new BroadcastChannel("restaurant_cloud")
+/* ===============================
+BROADCAST LISTENER
+=============================== */
+
+channel.onmessage = (msg)=>{
+
+if(msg.data==="sync"){
+
+document.dispatchEvent(new Event("dataSynced"))
+
+}
+
+}
+
+/* ===============================
+TRANSLATIONS
+=============================== */
+
+const translations={
+
+ar:{
+title:"مركز التحكم السحابي",
+branch:"رقم الفرع",
+url:"رابط السيرفر",
+createDB:"إنشاء قاعدة بيانات الفرع",
+startCloud:"تشغيل السحابة",
+upload:"رفع البيانات",
+download:"استرجاع البيانات",
+check:"فحص الاتصال",
+clear:"تنظيف Queue",
+delete:"حذف قاعدة بيانات الفرع"
+},
+
+en:{
+title:"Restaurant Cloud Control Center",
+branch:"Branch Code",
+url:"Web App URL",
+createDB:"Create Branch Database",
+startCloud:"Start Cloud",
+upload:"Upload Now",
+download:"Download Now",
+check:"Check Server",
+clear:"Clear Queue",
+delete:"Delete Branch Database"
+}
+
+}
+
+
+function applyLang(){
+
+const lang=window.APP_LANG || localStorage.getItem("lang") || "ar"
+
+document.querySelectorAll("[data-lang]").forEach(el=>{
+const key=el.dataset.lang
+if(translations[lang][key])
+el.textContent=translations[lang][key]
+})
+
+}
+
+document.addEventListener("appLanguageChanged",applyLang)
+
+
+/* ===============================
+STATUS
+=============================== */
+
+function setStatus(msg,type="info"){
+
+const box=document.getElementById("syncStatus")
+
+box.className="status-box status-"+type
+box.textContent=msg
+
+}
+
+
+/* ===============================
+QUEUE
+=============================== */
+
+function getQueue(){
+
+try{
+return JSON.parse(localStorage.getItem("syncQueue")||"[]")
+}catch{
+return[]
+}
+
+}
+
+function saveQueue(q){
+localStorage.setItem("syncQueue",JSON.stringify(q))
+}
+
+
+/* ===============================
+CREATE BRANCH DATABASE
+=============================== */
+
+async function createBranchDB(){
+
+const branch=document.getElementById("branchCode").value.trim()
+
+if(!branch){
+setStatus("Branch required","error")
+return
+}
+
+SERVER=document.getElementById("scriptUrl").value || DEFAULT_SERVER
+
+const payload={
+secret:SECRET,
+action:"init",
+branch:branch
+}
+
+const form=new FormData()
+form.append("payload",JSON.stringify(payload))
+
+try{
+
+const res=await fetch(SERVER,{method:"POST",body:form})
+const data=await res.json()
+
+if(data.status==="created")
+setStatus("Branch DB created","ok")
+
+else
+setStatus("Branch already exists","info")
+
+}catch{
+
+setStatus("Server connection failed","error")
+
+}
+
+}
+
+
+/* ===============================
+DELETE BRANCH DATABASE
+=============================== */
+
+async function deleteBranchDB(){
+
+const pass=prompt("Enter admin password")
+
+if(pass!==ADMIN_PASS){
+
+alert("Wrong password")
+return
+
+}
+
+const branch=document.getElementById("branchCode").value.trim()
+
+if(!branch){
+alert("Branch required")
+return
+}
+
+const payload={
+secret:SECRET,
+action:"deleteBranch",
+branch:branch
+}
+
+const form=new FormData()
+form.append("payload",JSON.stringify(payload))
+
+try{
+
+await fetch(SERVER,{method:"POST",body:form})
+
+setStatus("Branch database deleted","ok")
+
+}catch{
+
+setStatus("Delete failed","error")
+
+}
+
+}
+
+
+/* ===============================
+UPLOAD
+=============================== */
+
+async function sendBatch(){
+
+const queue=getQueue()
+
+if(queue.length===0) return
+
+const payload={
+secret:SECRET,
+action:"batch",
+branch:localStorage.getItem("branch"),
+timers:queue
+}
+
+const form=new FormData()
+form.append("payload",JSON.stringify(payload))
+
+await fetch(SERVER,{method:"POST",body:form})
+
+saveQueue([])
+
+channel.postMessage("sync")
+
+}
+
+
+/* ===============================
+DOWNLOAD
+=============================== */
+async function getUpdates(){
+
+const branch=localStorage.getItem("branch")
+
+const res=await fetch(
+SERVER+"?action=sync&branch="+branch+"&last="+lastSync
+)
+
+const data=await res.json()
+
+if(data.timers){
+
+localStorage.setItem(
+"timers",
+JSON.stringify(data.timers)
+)
+
+/* تحديث كل الصفحات */
+
+document.dispatchEvent(new Event("dataSynced"))
+
+/* بث التحديث لباقي الأجهزة */
+
+channel.postMessage("sync")
+
+}
+
+lastSync=data.serverTime || lastSync
+
+}
+
+/* ===============================
+QUEUE TIMER UPDATE
+=============================== */
+
+window.queueTimerUpdate=function(timer){
+
+let q=getQueue()
+
+timer.device=DEVICE_ID
+timer.time=Date.now()
+
+q.push(timer)
+
+saveQueue(q)
+
+}
+
+/* ===============================
+REALTIME SYNC 100ms
+=============================== */
+
+async function liveSync(){
+
+if(syncRunning) return
+
+syncRunning=true
+
+await sendBatch()
+await getUpdates()
+
+syncRunning=false
+
+}
+
+
+/* ===============================
+START CLOUD
+=============================== */
+
+function startCloud(){
+
+const branch=document.getElementById("branchCode").value.trim()
+
+if(!branch){
+setStatus("Branch required","error")
+return
+}
+
+SERVER=document.getElementById("scriptUrl").value || DEFAULT_SERVER
+
+localStorage.setItem("branch",branch)
+localStorage.setItem("scriptURL",SERVER)
+
+if(syncLoop) clearInterval(syncLoop)
+
+/* 100ms */
+
+syncLoop=setInterval(liveSync,500)
+
+setStatus("Realtime Cloud Running","ok")
+
+}
+
+
+/* ===============================
+DASHBOARD
+=============================== */
+
+async function loadDashboard(){
+
+const res=await fetch(SERVER+"?action=dashboard")
+
+const data=await res.json()
+
+const list=document.getElementById("dashboardList")
+list.innerHTML=""
+
+data.branches.forEach(b=>{
+
+const li=document.createElement("li")
+li.textContent=b.branch+" : "+b.timers+" timers"
+
+list.appendChild(li)
+
+})
+
+}
+
+
+/* ===============================
+KITCHEN FEED
+=============================== */
+
+async function loadKitchen(){
+
+const branch=localStorage.getItem("branch")
+
+const res=await fetch(SERVER+"?action=kitchen&branch="+branch)
+
+const data=await res.json()
+
+const box=document.getElementById("kitchenFeed")
+box.innerHTML=""
+
+data.kitchen.forEach(k=>{
+
+const li=document.createElement("li")
+li.textContent=k.product+" ("+k.section+")"
+
+box.appendChild(li)
+
+})
+
+}
+
+
+/* ===============================
+AI PREDICTION
+=============================== */
+
+async function loadPrediction(){
+
+const branch=localStorage.getItem("branch")
+
+const res=await fetch(SERVER+"?action=predict&branch="+branch)
+
+const data=await res.json()
+
+document.getElementById("aiPrediction").textContent =
+"Expiring soon: "+data.expiringSoon
+
+}
+
+
+/* ===============================
+SERVER CHECK
+=============================== */
+
+async function checkServer(){
+
+try{
+await fetch(SERVER)
+setStatus("Server OK","ok")
+}catch{
+setStatus("Server offline","error")
+}
+
+}
+
+
+/* ===============================
+CLEAR QUEUE
+=============================== */
+
+function clearQueue(){
+
+localStorage.removeItem("syncQueue")
+
+setStatus("Queue cleared","ok")
+
+}
+
+
+/* ===============================
+BUTTONS
+=============================== */
+
+document.getElementById("createDB").onclick=createBranchDB
+document.getElementById("startCloud").onclick=startCloud
+document.getElementById("uploadNow").onclick=sendBatch
+document.getElementById("downloadNow").onclick=getUpdates
+document.getElementById("checkServer").onclick=checkServer
+document.getElementById("clearQueue").onclick=clearQueue
+document.getElementById("deleteBranch").onclick=deleteBranchDB
+
+
+/* ===============================
+INIT
+=============================== */
+
+function init(){
+
+applyLang()
+
+const branch=localStorage.getItem("branch")
+const url=localStorage.getItem("scriptURL")
+
+if(branch)
+document.getElementById("branchCode").value=branch
+
+if(url)
+document.getElementById("scriptUrl").value=url
+
+SERVER=url || DEFAULT_SERVER
+
+loadDashboard()
+loadKitchen()
+loadPrediction()
+
+}
+
+document.addEventListener("pageLoaded",init)
+
+})();
+</script>

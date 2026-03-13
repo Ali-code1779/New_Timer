@@ -1,0 +1,504 @@
+<style>
+
+/* ===============================
+CARD
+=============================== */
+
+.actions-section{
+
+background:#ffffff;
+border-radius:16px;
+box-shadow:0 6px 18px rgba(0,0,0,0.08);
+padding:25px;
+max-width:1100px;
+margin:auto;
+
+}
+
+.actions-section h2{
+
+text-align:center;
+color:#0d6efd;
+font-weight:700;
+margin-bottom:20px;
+
+}
+
+
+/* ===============================
+TABLE
+=============================== */
+
+.settings-table{
+
+width:100%;
+border-collapse:collapse;
+font-size:14px;
+
+}
+
+.settings-table thead{
+
+background:#0d6efd;
+color:white;
+
+}
+
+.settings-table th{
+
+padding:12px;
+text-align:center;
+font-weight:600;
+
+}
+
+.settings-table td{
+
+padding:10px;
+text-align:center;
+border-bottom:1px solid #e6e6e6;
+
+}
+
+.settings-table tbody tr:hover{
+
+background:#f5f9ff;
+
+}
+
+.settings-table select{
+
+padding:4px 6px;
+border-radius:6px;
+border:1px solid #ccc;
+
+}
+
+.settings-table input[type="checkbox"]{
+
+transform:scale(1.3);
+cursor:pointer;
+
+}
+
+
+/* ===============================
+BUTTONS
+=============================== */
+
+.actions-buttons{
+
+margin-top:20px;
+text-align:center;
+
+}
+
+.actions-buttons button{
+
+margin:5px;
+padding:8px 16px;
+font-weight:600;
+
+}
+
+</style>
+
+
+
+<section class="actions-section">
+
+<h2>🛠️ إعدادات المؤقتات لكل قسم</h2>
+
+<form id="actionsForm">
+
+<div style="overflow-x:auto">
+
+<table class="settings-table">
+
+<thead>
+<tr>
+<th>القسم</th>
+<th>إدخال الكمية</th>
+<th>إدخال الانتهاء</th>
+<th>إدخال التحضير</th>
+<th>وحدة الوقت</th>
+<th>الصوت</th>
+<th>تكرار التنبيه</th>
+</tr>
+</thead>
+
+<tbody id="sectionsSettingsBody"></tbody>
+
+</table>
+
+</div>
+
+<div class="actions-buttons">
+
+<button class="btn btn-success" type="submit">💾 حفظ</button>
+
+<button type="button" class="btn btn-primary" id="exportSettingsBtn">
+📤 تصدير إلى Google Sheets
+</button>
+
+</div>
+
+</form>
+
+</section>
+
+
+
+<script>
+(function(){
+
+/* ===============================
+CONFIG
+=============================== */
+
+const GAS_URL =
+"https://script.google.com/macros/s/AKfycbwXXXXXXXXXXXX/exec?action=getSections"
+
+const EXPORT_URL =
+"https://script.google.com/macros/s/AKfycbzed4qYRv8FOZs7Lmo5LG6bmWqo5soAcTvsHAc60BN835rkqHeJ-moecqf_5DCwpXe-/exec"
+
+
+
+let settings=[]
+let googleSections=[]
+
+
+
+/* ===============================
+GET SECTIONS FROM LOCAL STORAGE
+=============================== */
+
+function getLocalSections(){
+
+let sections=new Set()
+
+const keys=["products","productsData","productsList","sections"]
+
+keys.forEach(key=>{
+
+try{
+
+const data=
+JSON.parse(localStorage.getItem(key)||"[]")
+
+data.forEach(item=>{
+
+const sec=
+item.section ||
+item.Section ||
+item.SECTION ||
+item.category ||
+item.Category ||
+item.section_name
+
+if(sec) sections.add(sec)
+
+})
+
+}catch{}
+
+})
+
+return [...sections]
+
+}
+
+
+
+/* ===============================
+GET SECTIONS FROM GOOGLE SHEET
+=============================== */
+
+async function getGoogleSections(){
+
+try{
+
+const res=await fetch(GAS_URL)
+
+const data=await res.json()
+
+let sections=new Set()
+
+data.forEach(r=>{
+
+const sec=
+r.section ||
+r.Section ||
+r.SECTION ||
+r["Section Name En."] ||
+r["اسم القسم بالعربية"]
+
+if(sec) sections.add(sec)
+
+})
+
+googleSections=[...sections]
+
+}catch{
+
+googleSections=[]
+
+}
+
+}
+
+
+
+/* ===============================
+MERGE SECTIONS
+=============================== */
+
+function getAllSections(){
+
+const local=getLocalSections()
+
+return [...new Set([...local,...googleSections])]
+
+}
+
+
+
+/* ===============================
+LOAD SETTINGS
+=============================== */
+
+function loadSettings(){
+
+try{
+
+settings=
+JSON.parse(localStorage.getItem("sectionsSettings")||"[]")
+
+}catch{
+
+settings=[]
+
+}
+
+}
+
+
+
+/* ===============================
+BUILD SETTINGS
+=============================== */
+
+function buildSettings(){
+
+const sections=getAllSections()
+
+sections.forEach(sec=>{
+
+if(!settings.find(s=>s.section===sec)){
+
+settings.push({
+
+section:sec,
+manualQty:false,
+manualExpiry:false,
+manualPrep:false,
+timeUnit:"hours",
+soundEnabled:true,
+repeatAlert:false
+
+})
+
+}
+
+})
+
+}
+
+
+
+/* ===============================
+TABLE
+=============================== */
+
+function renderTable(){
+
+const body=document.getElementById("sectionsSettingsBody")
+
+body.innerHTML=""
+
+settings.forEach((s,i)=>{
+
+body.innerHTML+=`
+
+<tr>
+
+<td><strong>${s.section}</strong></td>
+
+<td>
+<input type="checkbox"
+${s.manualQty?"checked":""}
+data-row="${i}" data-key="manualQty">
+</td>
+
+<td>
+<input type="checkbox"
+${s.manualExpiry?"checked":""}
+data-row="${i}" data-key="manualExpiry">
+</td>
+
+<td>
+<input type="checkbox"
+${s.manualPrep?"checked":""}
+data-row="${i}" data-key="manualPrep">
+</td>
+
+<td>
+
+<select data-row="${i}" data-key="timeUnit">
+
+<option value="minutes"
+${s.timeUnit==="minutes"?"selected":""}>
+Minutes
+</option>
+
+<option value="hours"
+${s.timeUnit==="hours"?"selected":""}>
+Hours
+</option>
+
+<option value="days"
+${s.timeUnit==="days"?"selected":""}>
+Days
+</option>
+
+</select>
+
+</td>
+
+<td>
+<input type="checkbox"
+${s.soundEnabled?"checked":""}
+data-row="${i}" data-key="soundEnabled">
+</td>
+
+<td>
+<input type="checkbox"
+${s.repeatAlert?"checked":""}
+data-row="${i}" data-key="repeatAlert">
+</td>
+
+</tr>
+
+`
+
+})
+
+
+
+document
+.querySelectorAll("#sectionsSettingsBody input,#sectionsSettingsBody select")
+.forEach(el=>{
+
+el.addEventListener("change",updateSetting)
+
+})
+
+}
+
+
+
+/* ===============================
+UPDATE
+=============================== */
+
+function updateSetting(e){
+
+const row=parseInt(e.target.dataset.row)
+const key=e.target.dataset.key
+
+if(e.target.type==="checkbox")
+settings[row][key]=e.target.checked
+else
+settings[row][key]=e.target.value
+
+localStorage.setItem(
+"sectionsSettings",
+JSON.stringify(settings)
+)
+
+}
+
+
+
+/* ===============================
+SAVE
+=============================== */
+
+function saveSettings(e){
+
+e.preventDefault()
+
+localStorage.setItem(
+"sectionsSettings",
+JSON.stringify(settings)
+)
+
+alert("Settings Saved")
+
+}
+
+
+
+/* ===============================
+EXPORT
+=============================== */
+
+function exportSettings(){
+
+fetch(EXPORT_URL,{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+settings:settings
+})
+
+})
+
+.then(()=>alert("Exported to Google Sheets"))
+.catch(()=>alert("Export Error"))
+
+}
+
+
+
+/* ===============================
+INIT
+=============================== */
+
+document.addEventListener("pageLoaded",async()=>{
+
+loadSettings()
+
+await getGoogleSections()
+
+buildSettings()
+
+renderTable()
+
+document
+.getElementById("actionsForm")
+.addEventListener("submit",saveSettings)
+
+document
+.getElementById("exportSettingsBtn")
+.addEventListener("click",exportSettings)
+
+})
+
+})();
+</script>

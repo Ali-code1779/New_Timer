@@ -1,0 +1,797 @@
+<style>
+
+.timers-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+color:var(--text-primary);
+animation:fadeIn .4s ease
+}
+
+@keyframes fadeIn{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:translateY(0)}
+}
+
+.timers-toolbar{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+margin-bottom:20px
+}
+
+.timers-search{
+max-width:260px
+}
+
+.sections-grid{
+display:none;
+flex-wrap:wrap;
+gap:8px;
+margin-bottom:20px
+}
+
+.section-btn{
+border:none;
+padding:8px 16px;
+border-radius:10px;
+cursor:pointer;
+font-weight:600;
+border:1px solid var(--border-color);
+display:flex;
+align-items:center;
+color:#fff
+}
+
+.timers-table{
+background:var(--card-bg);
+border-radius:12px;
+border:1px solid var(--border-color);
+box-shadow:0 4px 10px rgba(0,0,0,.05);
+max-height:65vh;
+overflow:auto;
+}
+
+.timers-table table{
+width:100%;
+border-collapse:collapse
+}
+
+.timers-table thead th{
+position:sticky;
+top:0;
+background:#0d6efd;
+color:white;
+padding:12px;
+text-align:center;
+font-weight:700;
+z-index:5;
+}
+
+.timers-table td{
+padding:10px;
+border-top:1px solid var(--border-color);
+text-align:center;
+white-space:nowrap;
+}
+
+.timer-active{background:#e8f7ff}
+.timer-warning{background:#fff3cd}
+
+.timer-expired{
+background:#f8d7da;
+color:#b91c1c;
+font-weight:700
+}
+
+.remaining-bar{
+height:4px;
+border-radius:3px;
+margin-top:3px;
+background:#22c55e;
+transition:width 1s linear
+}
+
+.timer-warning .remaining-bar{background:#f59e0b}
+.timer-expired .remaining-bar{background:#dc2626}
+
+.action-btn{
+border:none;
+padding:5px 10px;
+border-radius:6px;
+font-size:.9rem;
+cursor:pointer;
+color:white
+}
+
+.btn-sell{background:#16a34a}
+.btn-dispose{background:#e11d48}
+.btn-delete{background:#6b7280}
+
+.no-data{
+text-align:center;
+padding:30px
+}
+
+.stats-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+gap:15px;
+margin-bottom:20px
+}
+
+.stat-card{
+background:#fff;
+padding:15px;
+border-radius:10px;
+border-left:5px solid #0d6efd
+}
+
+.stat-title{
+font-size:.9rem;
+color:#6b7280
+}
+
+.stat-value{
+font-size:22px;
+font-weight:700
+}
+
+/* System message */
+
+.system-message{
+display:none;
+padding:12px;
+border-radius:10px;
+margin-bottom:15px;
+font-weight:600;
+text-align:center;
+}
+
+.system-error{
+background:#fee2e2;
+color:#991b1b
+}
+
+.system-success{
+background:#dcfce7;
+color:#065f46
+}
+</style>
+
+<div class="timers-wrapper">
+
+<h2 class="section-title">📋 Timers Table</h2>
+
+<div class="timers-toolbar">
+<input id="timerSearch" class="form-control timers-search" placeholder="Search">
+<button class="btn btn-primary" id="refreshTimers">🔄 Refresh</button>
+<button class="btn btn-success" id="uploadTimers">☁️ Upload</button>
+<button class="btn btn-info" id="downloadTimers">⬇️ Download</button>
+<button class="btn btn-dark" id="btnAll">📦 All</button>
+<button class="btn btn-secondary" id="toggleSections">📂 Sections</button>
+</div>
+
+<div id="systemMessage" class="system-message"></div>
+
+<div id="statsGrid" class="stats-grid"></div>
+
+<div id="sectionsBar" class="sections-grid"></div>
+
+<div class="timers-table">
+<table>
+
+<thead>
+<tr>
+<th>⚙️ Action</th>
+<th>⏳ Time Left</th>
+<th>Section</th>
+<th>Product</th>
+<th>⏱ Duration</th>
+<th>Qty</th>
+<th>Prepared</th>
+<th>Expires</th>
+</tr>
+</thead>
+
+<tbody id="timersBody">
+<tr>
+<td colspan="8" class="no-data">Loading...</td>
+</tr>
+</tbody>
+
+</table>
+</div>
+
+</div>
+
+
+<script>
+
+/* ===============================
+SOUNDS
+=============================== */
+
+const failSound = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg")
+const successSound = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg")
+
+/* ===============================
+UNLOCK AUDIO
+=============================== */
+
+document.addEventListener("click",()=>{
+
+document.querySelectorAll("audio").forEach(a=>{
+a.volume=1
+})
+
+},{once:true})
+/* ===============================
+SYSTEM MESSAGE
+=============================== */
+
+function showMessage(type,ar,en){
+
+const box=document.getElementById("systemMessage")
+
+box.className="system-message"
+box.style.display="block"
+
+if(type==="error") box.classList.add("system-error")
+if(type==="success") box.classList.add("system-success")
+
+box.innerHTML=`
+<div>${type==="error"?"⚠️":"✅"} ${ar}</div>
+<div style="font-size:12px;opacity:.8">${en}</div>
+`
+
+setTimeout(()=>{
+box.style.display="none"
+},4000)
+
+}
+
+(function(){
+
+const WARNING_TIME=600000
+
+let timers=[]
+let search=""
+let currentSection="all"
+let timerSoundState={}
+let expiredLoops={}
+
+/* ===============================
+GLOBAL EXPIRED ALARM
+=============================== */
+
+let globalAlarm = null
+
+function startGlobalAlarm(){
+
+if(globalAlarm) return
+
+globalAlarm = setInterval(()=>{
+
+if(window.SectionSoundEngine){
+
+/* صوت افتراضي قوي */
+
+SectionSoundEngine.playExpired("GLOBAL")
+
+}else{
+
+/* fallback صوت طويل */
+
+const audio = new Audio(
+"https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"
+)
+
+audio.volume = 1
+audio.play()
+
+}
+
+},4000)
+
+}
+
+function stopGlobalAlarm(){
+
+if(globalAlarm){
+
+clearInterval(globalAlarm)
+globalAlarm=null
+
+}
+
+}
+/* ===============================
+LOAD
+=============================== */
+
+function loadTimers(){
+
+try{
+
+timers=JSON.parse(localStorage.getItem("timers")||"[]")
+
+timers.forEach(t=>{
+
+const prep=DateEngine.toTimestamp(t.preparedTime)
+const exp=DateEngine.toTimestamp(t.expirationTime)
+
+if(prep) t.preparedTime=prep
+if(exp) t.expirationTime=exp
+
+})
+
+}catch{
+
+timers=[]
+
+}
+
+timers.sort((a,b)=>a.expirationTime-b.expirationTime)
+
+renderSections()
+renderTable()
+updateStats()
+
+}
+
+/* ===============================
+SECTIONS
+=============================== */
+
+function renderSections(){
+
+const bar=document.getElementById("sectionsBar")
+
+bar.innerHTML=""
+
+const sections=[...new Set(timers.map(t=>t.section||"Other"))]
+
+sections.forEach((sec,i)=>{
+
+const btn=document.createElement("button")
+
+btn.innerText=sec
+btn.className="section-btn"
+
+btn.style.background=[
+"#ff6b6b","#ffa94d","#ffd43b","#69db7c",
+"#4dabf7","#9775fa","#f06595","#20c997"
+][i%8]
+
+btn.onclick=()=>{
+currentSection=sec
+renderTable()
+updateStats()
+}
+
+bar.appendChild(btn)
+
+})
+
+}
+
+/* ===============================
+FILTER
+=============================== */
+
+function getFiltered(){
+
+let list=[...timers]
+
+if(currentSection!=="all")
+list=list.filter(t=>t.section===currentSection)
+
+if(search){
+
+const q=search.toLowerCase()
+
+list=list.filter(t=>
+Object.values(t).join("").toLowerCase().includes(q)
+)
+
+}
+
+return list
+
+}
+
+/* ===============================
+TABLE
+=============================== */
+
+function renderTable(){
+
+const body=document.getElementById("timersBody")
+
+const list=getFiltered()
+
+body.innerHTML=""
+
+if(!list.length){
+
+body.innerHTML=`<tr><td colspan="8" class="no-data">No timers</td></tr>`
+return
+
+}
+
+list.forEach((t,i)=>{
+
+const tr=document.createElement("tr")
+
+tr.innerHTML=`
+
+<td>
+<button class="action-btn btn-sell" onclick="timerAction(${i},'sell')">Sell</button>
+<button class="action-btn btn-dispose" onclick="timerAction(${i},'dispose')">Dispose</button>
+<button class="action-btn btn-delete" onclick="timerAction(${i},'delete')">Delete</button>
+</td>
+
+<td>
+<div id="remain-${i}"></div>
+<div class="remaining-bar" id="bar-${i}"></div>
+</td>
+
+<td>${t.section}</td>
+<td>${t.product}</td>
+<td>${t.duration}</td>
+<td>${t.quantity}</td>
+<td>${DateEngine.display(t.preparedTime)}</td>
+<td>${DateEngine.display(t.expirationTime)}</td>
+
+`
+
+body.appendChild(tr)
+
+})
+
+}
+
+/* ===============================
+REMAINING
+=============================== */
+function updateTimers(){
+
+let expiredExists=false
+
+timers.forEach((t,i)=>{
+
+const el=document.getElementById(`remain-${i}`)
+if(!el) return
+
+const now=Date.now()
+const remain=t.expirationTime-now
+
+const bar=document.getElementById(`bar-${i}`)
+
+if(bar){
+
+const total=t.duration*3600000
+const percent=Math.max(0,Math.min(100,(remain/total)*100))
+
+bar.style.width=percent+"%"
+
+}
+
+const row=el.closest("tr")
+
+el.textContent=formatRemaining(remain)
+
+/* ===============================
+STATE
+=============================== */
+
+let state="active"
+
+if(remain<=0){
+state="expired"
+expiredExists=true
+}
+else if(remain<=WARNING_TIME){
+state="warning"
+}
+
+/* ===============================
+ROW STYLE
+=============================== */
+
+row.className=
+state==="expired"?"timer-expired":
+state==="warning"?"timer-warning":
+"timer-active"
+
+/* ===============================
+INITIAL STATE
+=============================== */
+
+if(!timerSoundState[i])
+timerSoundState[i]="active"
+
+/* ===============================
+STATE CHANGE
+=============================== */
+
+if(timerSoundState[i]!==state){
+
+timerSoundState[i]=state
+
+if(window.SectionSoundEngine){
+
+if(state==="warning")
+SectionSoundEngine.playWarning(t.section)
+
+if(state==="expired")
+startExpiredAlarm(i,t.section)
+
+if(state!=="expired")
+stopExpiredAlarm(i)
+
+}
+
+}
+
+})
+
+/* ===============================
+GLOBAL ALARM
+=============================== */
+
+if(expiredExists){
+startGlobalAlarm()
+}else{
+stopGlobalAlarm()
+}
+
+}
+
+
+/* ===============================
+EXPIRED ALARM LOOP
+=============================== */
+
+function startExpiredAlarm(i,section){
+
+if(expiredLoops[i]) return
+
+expiredLoops[i]=setInterval(()=>{
+
+if(window.SectionSoundEngine){
+
+SectionSoundEngine.playExpired(section)
+
+}else{
+
+const audio=new Audio(
+"https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"
+)
+
+audio.volume=1
+audio.play()
+
+}
+
+},5000)
+
+}
+
+function stopExpiredAlarm(i){
+
+if(expiredLoops[i]){
+
+clearInterval(expiredLoops[i])
+delete expiredLoops[i]
+
+}
+
+}
+
+function formatRemaining(ms){
+
+const negative=ms<0
+
+let s=Math.abs(Math.floor(ms/1000))
+
+let h=Math.floor(s/3600)
+let m=Math.floor((s%3600)/60)
+let sec=s%60
+
+let txt=`${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${sec.toString().padStart(2,"0")}`
+
+return negative?"-"+txt:txt
+
+}
+
+/* ===============================
+STATS
+=============================== */
+
+function updateStats(){
+
+const list=getFiltered()
+
+const now=Date.now()
+
+const active=list.filter(t=>t.expirationTime-now>WARNING_TIME).length
+
+const warning=list.filter(t=>{
+let r=t.expirationTime-now
+return r<=WARNING_TIME && r>0
+}).length
+
+const expired=list.filter(t=>t.expirationTime-now<=0).length
+
+document.getElementById("statsGrid").innerHTML=`
+
+<div class="stat-card">
+<div class="stat-title">Total</div>
+<div class="stat-value">${list.length}</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-title">Active</div>
+<div class="stat-value">${active}</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-title">Warning</div>
+<div class="stat-value">${warning}</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-title">Expired</div>
+<div class="stat-value">${expired}</div>
+</div>
+
+`
+
+}
+
+/* ===============================
+ACTIONS
+=============================== */
+
+window.timerAction=function(i,type){
+
+const timer=timers[i]
+
+if(!timer) return
+
+const now=Date.now()
+
+/* DELETE */
+if(type==="delete"){
+
+const pass=prompt("Admin Password")
+
+if(pass!=="Ali@1779"){
+failSound.play()
+showMessage("error","كلمة المرور غير صحيحة","Incorrect password")
+return
+}
+
+stopExpiredAlarm(i)
+
+timers.splice(i,1)
+
+successSound.play()
+showMessage("success","تم حذف المنتج","Product deleted")
+
+}
+
+/* SELL */
+
+if(type==="sell"){
+stopExpiredAlarm(i)
+
+
+if(timer.expirationTime<=now){
+
+failSound.play()
+
+showMessage(
+"error",
+"لا يمكن بيع المنتج لأنه منتهي الصلاحية ويجب اتلافه فوراً",
+"Product expired. Selling blocked. Dispose immediately."
+)
+
+return
+
+}
+
+timer.quantity--
+
+let logs=JSON.parse(localStorage.getItem("alertLogs")||"[]")
+
+logs.push({
+type:"sell",
+product:timer.product,
+section:timer.section,
+time:Date.now()
+})
+
+localStorage.setItem("alertLogs",JSON.stringify(logs))
+
+if(timer.quantity<=0)
+timers.splice(i,1)
+
+successSound.play()
+
+showMessage("success","تم تسجيل عملية البيع","Sale recorded")
+
+}
+
+/* DISPOSE */
+
+if(type==="dispose"){
+stopExpiredAlarm(i)
+
+
+timer.quantity--
+
+let logs=JSON.parse(localStorage.getItem("alertLogs")||"[]")
+
+logs.push({
+type:"dispose",
+product:timer.product,
+section:timer.section,
+time:Date.now()
+})
+
+localStorage.setItem("alertLogs",JSON.stringify(logs))
+
+if(timer.quantity<=0)
+timers.splice(i,1)
+
+successSound.play()
+
+showMessage("success","تم اتلاف المنتج","Product disposed")
+
+}
+
+localStorage.setItem("timers",JSON.stringify(timers))
+
+renderTable()
+updateStats()
+
+}
+
+/* ===============================
+EVENTS
+=============================== */
+
+document.getElementById("timerSearch").addEventListener("input",e=>{
+search=e.target.value
+renderTable()
+updateStats()
+})
+
+document.getElementById("toggleSections").onclick=()=>{
+const bar=document.getElementById("sectionsBar")
+bar.style.display=bar.style.display==="flex"?"none":"flex"
+}
+
+document.getElementById("btnAll").onclick=()=>{
+currentSection="all"
+renderTable()
+updateStats()
+}
+
+document.getElementById("refreshTimers").onclick=loadTimers
+
+/* ===============================
+INIT
+=============================== */
+
+function init(){
+loadTimers()
+setInterval(updateTimers,2000)
+}
+
+document.addEventListener("pageLoaded",init)
+document.addEventListener("DOMContentLoaded",init)
+})();
+
+</script>

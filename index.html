@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Restaurant Timer System</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+font-family:'Segoe UI','Cairo',sans-serif;
+background:#f4f6f9;
+margin:0;
+display:flex;
+flex-direction:column;
+height:100vh;
+overflow:hidden
+}
+
+header{
+background:#fff;
+padding:10px 20px;
+box-shadow:0 1px 5px rgba(0,0,0,.1);
+display:flex;
+justify-content:space-between;
+align-items:center;
+height:60px;
+z-index:1100
+}
+
+.app-title{
+display:flex;
+align-items:center;
+gap:12px;
+font-size:1.6rem;
+font-weight:700;
+color:#2c3e50
+}
+
+#clock{
+color:#6c757d;
+font-weight:600;
+font-size:0.95rem
+}
+
+#branchDisplay{
+background:#0d6efd;
+color:#fff;
+padding:3px 10px;
+border-radius:8px;
+font-size:0.9rem
+}
+
+.header-controls{
+display:flex;
+gap:10px
+}
+
+#langToggle,#darkToggle{
+border:none;
+padding:6px 12px;
+border-radius:8px;
+cursor:pointer
+}
+
+#langToggle{
+background:#0d6efd;
+color:#fff
+}
+
+#darkToggle{
+background:#212529;
+color:#fff
+}
+
+.sidebar{
+position:fixed;
+top:60px;
+right:0;
+width:240px;
+bottom:0;
+background:#fff;
+border-left:1px solid #ddd;
+padding:20px 10px;
+display:flex;
+flex-direction:column;
+gap:12px;
+overflow-y:auto
+}
+
+.sidebar a{
+display:flex;
+align-items:center;
+gap:10px;
+padding:12px;
+border-radius:10px;
+background:#eef2ff;
+font-weight:600;
+text-decoration:none;
+color:#333;
+cursor:pointer
+}
+
+.sidebar a.active{
+background:#0d6efd;
+color:#fff
+}
+
+main{
+margin-right:240px;
+padding:25px;
+overflow:auto;
+height:calc(100vh - 60px)
+}
+
+.loader{
+display:flex;
+justify-content:center;
+align-items:center;
+height:200px;
+font-size:20px
+}
+
+.dark body{background:#1e1e1e;color:#fff}
+.dark header{background:#2b2b2b}
+.dark .sidebar{background:#2b2b2b}
+.dark .sidebar a{background:#3a3a3a;color:#fff}
+.dark main{background:#1e1e1e;color:#fff}
+
+</style>
+<script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
+<script>
+
+/* ===============================
+GLOBAL SOUND ENGINE
+=============================== */
+
+const soundCache={}
+
+const soundLibrary={
+
+/* ===============================
+BELLS
+=============================== */
+
+bell1:"https://actions.google.com/sounds/v1/cartoon/service_bell.ogg",
+bell2:"https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg",
+bell3:"https://assets.mixkit.co/sfx/preview/mixkit-bell-notification-933.mp3",
+bell4:"https://assets.mixkit.co/sfx/preview/mixkit-positive-interface-beep-221.mp3",
+bell5:"https://assets.mixkit.co/sfx/preview/mixkit-bell-ring-585.mp3",
+
+/* ===============================
+KITCHEN TIMERS
+=============================== */
+
+timer1:"https://actions.google.com/sounds/v1/alarms/kitchen_timer.ogg",
+timer2:"https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3",
+timer3:"https://assets.mixkit.co/sfx/preview/mixkit-retro-game-notification-212.mp3",
+timer4:"https://assets.mixkit.co/sfx/preview/mixkit-classic-short-alarm-993.mp3",
+timer5:"https://assets.mixkit.co/sfx/preview/mixkit-alert-alarm-1005.mp3",
+
+/* ===============================
+WARNING
+=============================== */
+
+warn1:"https://actions.google.com/sounds/v1/alarms/beep_short.ogg",
+warn2:"https://assets.mixkit.co/sfx/preview/mixkit-warning-alarm-buzzer-991.mp3",
+warn3:"https://assets.mixkit.co/sfx/preview/mixkit-warning-notification-buzzer-984.mp3",
+warn4:"https://assets.mixkit.co/sfx/preview/mixkit-interface-hint-notification-911.mp3",
+warn5:"https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3",
+
+/* ===============================
+EXPIRED / ALARMS
+=============================== */
+
+alarm1:"https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg",
+alarm2:"https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg",
+alarm3:"https://assets.mixkit.co/sfx/preview/mixkit-security-alarm-997.mp3",
+alarm4:"https://assets.mixkit.co/sfx/preview/mixkit-emergency-alert-alarm-1007.mp3",
+alarm5:"https://assets.mixkit.co/sfx/preview/mixkit-classic-alarm-995.mp3",
+
+/* ===============================
+SOFT ALERTS
+=============================== */
+
+soft1:"https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3",
+soft2:"https://assets.mixkit.co/sfx/preview/mixkit-message-pop-alert-2354.mp3",
+soft3:"https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3",
+soft4:"https://assets.mixkit.co/sfx/preview/mixkit-achievement-bell-600.mp3",
+soft5:"https://assets.mixkit.co/sfx/preview/mixkit-long-pop-2358.mp3",
+
+/* ===============================
+DIGITAL
+=============================== */
+
+digital1:"https://assets.mixkit.co/sfx/preview/mixkit-interface-click-1126.mp3",
+digital2:"https://assets.mixkit.co/sfx/preview/mixkit-quick-positive-notification-951.mp3",
+digital3:"https://assets.mixkit.co/sfx/preview/mixkit-fast-small-sweep-transition-166.mp3",
+digital4:"https://assets.mixkit.co/sfx/preview/mixkit-video-game-mystery-alert-234.mp3",
+digital5:"https://assets.mixkit.co/sfx/preview/mixkit-video-game-retro-click-237.mp3"
+
+}
+
+/* LOAD SOUNDS */
+
+function loadSound(id,url){
+
+if(soundCache[id]) return
+
+soundCache[id]=new Howl({
+src:[url],
+preload:true,
+html5:true,
+volume:1
+})
+
+}
+
+Object.entries(soundLibrary).forEach(([id,url])=>{
+loadSound(id,url)
+})
+/* ===============================
+UNLOCK AUDIO (Browser Policy)
+=============================== */
+document.addEventListener("click", function unlockAudio(){
+
+Object.values(soundCache).forEach(s=>{
+try{
+s.volume(0)
+s.play()
+s.stop()
+s.volume(1)
+}catch(e){}
+})
+
+document.removeEventListener("click", unlockAudio)
+
+})
+
+/* ===============================
+SETTINGS
+=============================== */
+
+function getSoundSettings(){
+
+return JSON.parse(localStorage.getItem("soundSettings")||"{}")
+
+}
+
+/* ===============================
+PLAY SOUND
+=============================== */
+
+let MASTER_MUTE = false
+
+function playSound(sound, settings = {}){
+
+if(MASTER_MUTE) return
+
+if(!sound || !soundCache[sound]) return
+
+try{
+
+/* APPLY VOLUME */
+
+const volume = settings.volume !== undefined ? parseFloat(settings.volume) : 1
+soundCache[sound].volume(volume)
+
+/* REPEAT SETTINGS */
+
+let count = 0
+
+const repeat =
+settings.repeat === "infinite"
+? Infinity
+: parseInt(settings.repeat || 1)
+
+/* DELAY BETWEEN REPEATS */
+
+const delay = (parseFloat(settings.delay) || 5) * 1000
+
+/* PLAY FUNCTION */
+
+function play(){
+
+try{
+
+soundCache[sound].stop()
+soundCache[sound].play()
+
+}catch(e){
+
+console.warn("Sound play error:", e)
+
+}
+
+count++
+
+if(count < repeat){
+
+setTimeout(play, delay)
+
+}
+
+}
+
+/* START PLAY */
+
+play()
+
+}catch(err){
+
+console.error("Sound engine error:", err)
+
+}
+
+}
+
+/* ===============================
+PREVIEW SOUND
+=============================== */
+
+window.previewSound=function(sound){
+
+if(MASTER_MUTE) return
+
+if(!soundCache[sound]) return
+
+try{
+
+soundCache[sound].stop()
+soundCache[sound].volume(1)
+soundCache[sound].play()
+
+}catch(e){
+
+console.warn("Preview error:",e)
+
+}
+
+}
+/* ===============================
+SECTION SOUND ENGINE
+=============================== */
+window.SectionSoundEngine={
+
+playWarning(section){
+
+const settings=getSoundSettings()
+
+const s=settings[section] || {
+warning:"beep1",
+expired:"alarm1",
+volume:1,
+repeat:1,
+delay:5
+}
+
+playSound(s.warning,s)
+
+},
+
+playExpired(section){
+
+const settings=getSoundSettings()
+
+const s=settings[section] || {
+warning:"beep1",
+expired:"alarm1",
+volume:1,
+repeat:1,
+delay:5
+}
+
+playSound(s.expired,s)
+
+}
+
+}
+
+</script>
+</head>
+
+<body>
+
+<header>
+
+<div id="clock"></div>
+
+<div class="app-title">
+
+<i class="bi bi-stopwatch"></i>
+
+<span data-key="title">نظام إدارة المؤقتات</span>
+
+<span id="branchDisplay"></span>
+
+</div>
+
+<div class="header-controls">
+
+<button id="darkToggle"><i class="bi bi-moon"></i></button>
+
+<button onclick="openRestaurantSettings()"><i class="bi bi-gear"></i></button>
+
+<button id="langToggle"><span id="langText">English</span></button>
+
+</div>
+
+</header>
+
+<nav class="sidebar">
+
+<a data-route="home"><i class="bi bi-house-door-fill"></i>🏠 <span data-key="navHome">الرئيسية</span></a>
+<a data-route="products"><i class="bi bi-box-seam"></i>📦 <span data-key="navShowProducts">عرض المنتجات</span></a>
+<a data-route="add"><i class="bi bi-clock-history"></i>⏱️ <span data-key="navAddTimer">إضافة مؤقت</span></a>
+<a data-route="table"><i class="bi bi-table"></i>📋 <span data-key="navTimerTable">جدول المؤقتات</span></a>
+<a data-route="actions"><i class="bi bi-tools"></i>⚙️ <span data-key="navActions">إجراءات المنتج</span></a>
+<a data-route="print"><i class="bi bi-printer-fill"></i>🖨️ <span data-key="navPrintOptions">خيارات الطباعة</span></a>
+<a data-route="sound"><i class="bi bi-volume-up-fill"></i>🔊 <span data-key="navSoundSettings">إعدادات الصوت</span></a>
+<a data-route="reports"><i class="bi bi-bar-chart-line-fill"></i>📈 <span data-key="navReports">التقارير</span></a>
+<a data-route="dataset"><i class="bi bi-database-fill"></i>💾 <span data-key="navDataset">إعدادات البيانات</span></a>
+<a data-route="ordering"><i class="bi bi-calendar-check-fill"></i>📅 <span data-key="navOrdering">جدول الطلبات</span></a>
+<a data-route="tasks"><i class="bi bi-list-check"></i>📝 <span data-key="navTasks">المهام اليومية</span></a>
+
+</nav>
+
+<main id="workspace"></main>
+
+<script>
+
+/* ===============================
+ROUTES
+=============================== */
+
+const routes={
+home:"pages/dashboard2.html",
+products:"pages/show_products.html",
+add:"pages/add_timer2.html",
+table:"pages/timer_table2.html",
+actions:"pages/actions_timers2.html",
+print:"pages/print_options2.html",
+sound:"pages/sound_settings2.html",
+reports:"pages/reports2.html",
+dataset:"pages/data_settings2.html",
+ordering:"pages/ordering_schedule.html",
+tasks:"pages/daily_tasks.html",
+}
+
+const pageCache={}
+const loadedScripts=new Set()
+
+/* ===============================
+ROUTER
+=============================== */
+
+async function loadPage(route){
+
+const file=routes[route]
+if(!file)return
+
+const workspace=document.getElementById("workspace")
+
+workspace.innerHTML='<div class="loader">Loading...</div>'
+
+let html
+
+if(pageCache[file]){
+
+html=pageCache[file]
+
+}else{
+
+const res=await fetch(file)
+html=await res.text()
+pageCache[file]=html
+
+}
+
+workspace.innerHTML=html
+
+executeScripts()
+
+broadcastLanguage()
+
+document.dispatchEvent(new Event("pageLoaded"))
+
+activateMenu(route)
+
+}
+
+/* ===============================
+EXECUTE SCRIPTS
+=============================== */
+
+function executeScripts(){
+
+document.querySelectorAll("#workspace script").forEach(old=>{
+
+const s=document.createElement("script")
+
+if(old.src){
+
+if(!loadedScripts.has(old.src)){
+s.src=old.src
+document.body.appendChild(s)
+loadedScripts.add(old.src)
+}
+
+}else{
+
+s.textContent=old.textContent
+document.body.appendChild(s)
+
+}
+
+old.remove()
+
+})
+
+}
+
+/* ===============================
+SIDEBAR
+=============================== */
+
+document.querySelectorAll("[data-route]").forEach(link=>{
+
+link.onclick=()=>{
+
+const route=link.dataset.route
+
+history.pushState({route},"","#"+route)
+
+loadPage(route)
+
+}
+
+})
+
+window.onpopstate=e=>{
+
+const route=e.state?.route||"home"
+
+loadPage(route)
+
+}
+
+/* ===============================
+MENU
+=============================== */
+
+function activateMenu(route){
+
+document.querySelectorAll(".sidebar a").forEach(a=>{
+
+a.classList.toggle("active",a.dataset.route===route)
+
+})
+
+}
+
+/* ===============================
+LANGUAGE
+=============================== */
+
+let lang=localStorage.getItem("lang")||"ar"
+
+const langData={
+
+ar:{
+title:"نظام إدارة المؤقتات",
+navHome:"الرئيسية",
+navShowProducts:"عرض المنتجات",
+navAddTimer:"إضافة مؤقت",
+navTimerTable:"جدول المؤقتات",
+navActions:"إجراءات المنتج",
+navPrintOptions:"خيارات الطباعة",
+navSoundSettings:"إعدادات الصوت",
+navReports:"التقارير",
+navDataset:"إعدادات البيانات",
+navOrdering:"جدول الطلبات",
+navTasks:"المهام اليومية",
+toggle:"English"
+},
+
+en:{
+title:"Timer Management System",
+navHome:"Home",
+navShowProducts:"Products",
+navAddTimer:"Add Timer",
+navTimerTable:"Timers Table",
+navActions:"Product Actions",
+navPrintOptions:"Print Options",
+navSoundSettings:"Sound Settings",
+navAlerts:"Alerts",
+navReports:"Reports",
+navDataset:"Data Settings",
+navOrdering:"Ordering Schedule",
+navTasks:"Daily Tasks",
+toggle:"العربية"
+}
+
+}
+
+function applyLang(){
+
+
+document.querySelectorAll("[data-key]").forEach(el=>{
+
+const key=el.dataset.key
+if(langData[lang][key])el.textContent=langData[lang][key]
+
+})
+
+document.getElementById("langText").textContent=langData[lang].toggle
+
+}
+
+function broadcastLanguage(){
+
+window.APP_LANG=lang
+
+document.dispatchEvent(new CustomEvent("appLanguageChanged",{detail:{lang}}))
+
+}
+
+document.getElementById("langToggle").onclick=()=>{
+
+lang=lang==="ar"?"en":"ar"
+
+localStorage.setItem("lang",lang)
+
+applyLang()
+
+broadcastLanguage()
+
+}
+
+/* ===============================
+CLOCK + DATE FORMAT
+=============================== */
+
+function formatDateTime(ts){
+
+if(!ts)return""
+
+const locale=lang==="ar"?"ar-EG":"en-GB"
+
+return new Date(ts).toLocaleString(locale,{
+year:"numeric",
+month:"2-digit",
+day:"2-digit",
+hour:"2-digit",
+minute:"2-digit"
+})
+
+}
+
+window.formatDateTime=formatDateTime
+
+function updateClock(){
+
+const d=new Date()
+
+const locale=lang==="ar"?"ar-EG":"en-GB"
+
+const date=d.toLocaleDateString(locale,{
+weekday:"short",
+day:"numeric",
+month:"short",
+year:"numeric"
+})
+
+const time=d.toLocaleTimeString(locale,{
+hour:"2-digit",
+minute:"2-digit",
+second:"2-digit",
+hour12:false
+})
+
+document.getElementById("clock").textContent=
+`🗓 ${date} | ⏰ ${time}`
+
+}
+
+updateClock()
+
+setInterval(updateClock,1000)
+
+/* ===============================
+DARK MODE
+=============================== */
+
+if(localStorage.getItem("dark")==="1")
+document.documentElement.classList.add("dark")
+
+document.getElementById("darkToggle").onclick=()=>{
+
+document.documentElement.classList.toggle("dark")
+
+localStorage.setItem("dark",
+document.documentElement.classList.contains("dark")?"1":"0")
+
+}
+
+/* ===============================
+RESTAURANT SETTINGS
+=============================== */
+
+function openRestaurantSettings(){
+
+const pass=prompt("Admin Password")
+
+if(pass!=="Ali@1779")return alert("Access Denied")
+
+const name=prompt("Restaurant Name",localStorage.getItem("resName")||"")
+const number=prompt("Branch",localStorage.getItem("branch")||"")
+const logo=prompt("Logo URL",localStorage.getItem("resLogo")||"")
+
+if(name)localStorage.setItem("resName",name)
+if(number)localStorage.setItem("branch",number)
+if(logo)localStorage.setItem("resLogo",logo)
+
+applyRestaurantInfo()
+
+}
+
+function applyRestaurantInfo(){
+
+const name=localStorage.getItem("resName")||"Restaurant"
+const branch=localStorage.getItem("branch")||""
+const logo=localStorage.getItem("resLogo")||""
+
+document.querySelector(".app-title").innerHTML=`
+
+${logo?`<img src="${logo}" style="height:28px">`:""}
+
+<span>${name}</span>
+
+<span id="branchDisplay">🏢 ${branch}</span>
+
+`
+
+}
+
+/* ===============================
+DATA STORE
+=============================== */
+
+const SCRIPT_URL="YOUR_GOOGLE_SCRIPT_URL"
+
+const DataStore={
+
+products:[],
+timers:[],
+alerts:[],
+sections:[],
+
+async sync(){
+
+try{
+
+const [p,t,a]=await Promise.all([
+
+fetch(SCRIPT_URL+"?action=getProducts"),
+fetch(SCRIPT_URL+"?action=getTimers"),
+fetch(SCRIPT_URL+"?action=getAlerts")
+
+])
+
+this.products=await p.json()
+this.timers=await t.json()
+this.alerts=await a.json()
+
+localStorage.setItem("products",JSON.stringify(this.products))
+localStorage.setItem("timers",JSON.stringify(this.timers))
+localStorage.setItem("alerts",JSON.stringify(this.alerts))
+
+document.dispatchEvent(new Event("dataSynced"))
+
+}catch(e){
+
+console.error(e)
+
+}
+
+}
+
+}
+
+/* ===============================
+INIT
+=============================== */
+
+applyRestaurantInfo()
+
+applyLang()
+
+broadcastLanguage()
+
+DataStore.sync()
+
+setInterval(()=>{
+
+DataStore.sync()
+
+},300000)
+
+const startRoute=location.hash.replace("#","")||"home"
+
+loadPage(startRoute)
+
+</script>
+<script>
+
+/* =================================================
+GLOBAL DATE ENGINE
+Handles:
+Google Sheets Serial
+Timestamp
+ISO Date
+Timezone
+RTL Arabic
+================================================= */
+window.DateEngine = (function(){
+
+function clean(value){
+
+if(value===null || value===undefined) return ""
+
+return String(value)
+.replace(/[\u200E\u200F\u202A-\u202E]/g,"")
+.trim()
+
+}
+
+function detect(value){
+
+value = clean(value)
+
+if(!value) return null
+
+/* Google Sheets Serial */
+
+if(!isNaN(value) && Number(value)>40000 && Number(value)<60000){
+
+return new Date((Number(value)-25569)*86400000)
+
+}
+
+/* Timestamp */
+
+if(!isNaN(value) && String(value).length>=11){
+
+return new Date(Number(value))
+
+}
+
+/* ISO Date */
+
+if(/^\d{4}-\d{2}-\d{2}/.test(value)){
+
+return new Date(value)
+
+}
+
+/* dd/mm/yyyy */
+
+if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value)){
+
+const p=value.split("/")
+
+return new Date(
+p[2],
+p[1]-1,
+p[0]
+)
+
+}
+
+const d=new Date(value)
+
+if(!isNaN(d)) return d
+
+return null
+
+}
+
+function format(date){
+
+if(!date || isNaN(date)) return ""
+
+const day=String(date.getDate()).padStart(2,"0")
+const month=String(date.getMonth()+1).padStart(2,"0")
+const year=date.getFullYear()
+
+return `${day}/${month}/${year}`
+
+}
+
+function toTimestamp(value){
+
+const d=detect(value)
+
+if(!d) return null
+
+return d.getTime()
+
+}
+
+function display(value){
+
+const d=detect(value)
+
+if(!d) return value
+
+return format(d)
+
+}
+
+return{
+
+detect,
+format,
+display,
+toTimestamp
+
+}
+
+})();
+
+</script>
+</body>
+</html>

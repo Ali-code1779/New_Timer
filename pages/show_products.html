@@ -1,0 +1,561 @@
+<style>
+
+.products-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+color:var(--text-primary);
+animation:fadeIn .4s ease
+}
+
+@keyframes fadeIn{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:translateY(0)}
+}
+
+.products-toolbar{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+margin-bottom:20px
+}
+
+.products-search{
+max-width:260px
+}
+
+.sections-grid{
+display:none;
+flex-wrap:wrap;
+gap:8px;
+margin-bottom:20px
+}
+
+.section-btn{
+border:none;
+padding:8px 16px;
+border-radius:10px;
+cursor:pointer;
+font-weight:600;
+border:1px solid var(--border-color);
+display:flex;
+align-items:center;
+color:#fff
+}
+
+.products-table{
+background:var(--card-bg);
+border-radius:12px;
+border:1px solid var(--border-color);
+box-shadow:0 4px 10px rgba(0,0,0,.05);
+max-height:65vh;
+overflow:auto;
+}
+
+.products-table table{
+width:100%;
+border-collapse:collapse
+}
+
+.products-table thead th{
+position:sticky;
+top:0;
+background:#0d6efd;
+color:white;
+padding:12px;
+text-align:center;
+font-weight:700;
+z-index:5;
+}
+
+.products-table td{
+padding:10px;
+border-top:1px solid var(--border-color);
+text-align:center;
+white-space:nowrap;
+}
+
+.products-table tbody tr:hover{
+background:rgba(0,0,0,.04)
+}
+
+.no-data{
+text-align:center;
+padding:30px
+}
+
+.editable{
+background:#fff8e1;
+}
+
+.delete-btn{
+color:white;
+background:#dc3545;
+border:none;
+padding:4px 8px;
+border-radius:6px;
+cursor:pointer;
+font-weight:bold;
+}
+
+</style>
+
+
+<div class="products-wrapper">
+
+<h2 class="section-title">📦 Products</h2>
+
+<div class="products-toolbar">
+
+<input id="productSearch"
+class="form-control products-search"
+placeholder="Search">
+
+<button class="btn btn-primary" id="refreshProducts">🔄 Refresh</button>
+
+<button class="btn btn-dark" id="btnAll">📦 All</button>
+
+<button class="btn btn-secondary" id="toggleSections">📂 Sections</button>
+
+<button class="btn btn-success" id="editBtn">✏️ Edit</button>
+
+<button class="btn btn-warning" id="saveBtn" style="display:none">💾 Save</button>
+
+</div>
+
+<div id="sectionsBar" class="sections-grid"></div>
+
+<div class="products-table">
+
+<table>
+
+<thead>
+<tr>
+<th id="deleteHeader" style="display:none"></th>
+<th>#</th>
+<th>Section</th>
+<th>Product</th>
+<th>🌡 Temp</th>
+<th>⏱ Prep</th>
+<th>🕒 Unit</th>
+</tr>
+</thead>
+
+<tbody id="productsBody">
+<tr>
+<td colspan="7" class="no-data">Loading...</td>
+</tr>
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+
+<script>
+(function(){
+
+const API_URL="https://script.google.com/macros/s/AKfycbyVSSPlJFT1ru3OWoOlqDzRr6lhBeiphl8GsMmN96kSPO_v5vtW28vQ-0O1LGLHDJTG/exec"
+const ADMIN_PASS="Ali@1779"
+
+let products=[]
+let currentSection="all"
+let search=""
+let editMode=false
+
+const sectionColors=[
+"#ff6b6b","#ffa94d","#ffd43b","#69db7c",
+"#4dabf7","#9775fa","#f06595","#20c997"
+]
+
+/* =========================
+DATE FORMAT
+========================= */
+
+function formatDate(d){
+
+if(isNaN(d)) return ""
+
+const day=String(d.getDate()).padStart(2,'0')
+const month=String(d.getMonth()+1).padStart(2,'0')
+const year=d.getFullYear()
+
+return `${day}/${month}/${year}`
+
+}
+
+/* =========================
+DETECT DATE
+========================= */
+
+function detectDate(value){
+
+if(!value) return ""
+
+value=String(value)
+
+/* ISO */
+
+if(/^\d{4}-\d{2}-\d{2}/.test(value)){
+const d=new Date(value)
+if(!isNaN(d)) return formatDate(d)
+}
+
+/* Timestamp */
+
+if(!isNaN(value) && value.length>10){
+const d=new Date(Number(value))
+if(!isNaN(d)) return formatDate(d)
+}
+
+/* Google serial */
+
+if(!isNaN(value) && value>40000){
+const utc=(value-25569)*86400000
+return formatDate(new Date(utc))
+}
+
+return value
+
+}
+
+/* =========================
+GLOBAL DATA STORE
+========================= */
+
+function updateGlobalStore(){
+
+const sections=[...new Set(products.map(p=>p.Section||"Other"))]
+
+if(!window.DataStore) window.DataStore={}
+
+DataStore.products=products
+DataStore.sections=sections
+
+localStorage.setItem("products",JSON.stringify(products))
+localStorage.setItem("productSections",JSON.stringify(sections))
+
+document.dispatchEvent(new Event("dataSynced"))
+
+}
+
+/* =========================
+LOAD FROM API
+========================= */
+
+async function loadProducts(){
+
+try{
+
+const res=await fetch(API_URL+"?action=getProducts")
+
+const data=await res.json()
+
+if(!Array.isArray(data)) return
+
+products=data.filter(p=>Object.values(p).some(v=>v))
+
+updateGlobalStore()
+
+renderSections()
+renderTable()
+
+}catch(e){
+
+console.error("API ERROR",e)
+
+}
+
+}
+
+/* =========================
+LOAD CACHE
+========================= */
+
+function loadCache(){
+
+const cache=JSON.parse(localStorage.getItem("products")||"[]")
+
+if(cache.length){
+
+products=cache
+
+updateGlobalStore()
+
+renderSections()
+renderTable()
+
+}
+
+}
+
+/* =========================
+RENDER SECTIONS
+========================= */
+
+function renderSections(){
+
+const bar=document.getElementById("sectionsBar")
+
+bar.innerHTML=""
+
+const sections=[...new Set(products.map(p=>p.Section||"Other"))]
+
+sections.forEach((sec,i)=>{
+
+const btn=document.createElement("button")
+
+btn.className="section-btn"
+btn.innerText=sec
+btn.style.background=sectionColors[i%sectionColors.length]
+
+btn.onclick=()=>{
+currentSection=sec
+renderTable()
+}
+
+bar.appendChild(btn)
+
+})
+
+}
+
+/* =========================
+FILTER
+========================= */
+
+function getFiltered(){
+
+let list=[...products]
+
+if(currentSection!=="all")
+list=list.filter(p=>p.Section===currentSection)
+
+if(search){
+
+const q=search.toLowerCase()
+
+list=list.filter(p=>
+Object.values(p).join("").toLowerCase().includes(q)
+)
+
+}
+
+return list
+
+}
+
+/* =========================
+TABLE
+========================= */
+
+function renderTable(){
+
+const body=document.getElementById("productsBody")
+const header=document.getElementById("deleteHeader")
+
+const list=getFiltered()
+
+body.innerHTML=""
+
+header.style.display=editMode?"table-cell":"none"
+
+if(!list.length){
+
+body.innerHTML=`<tr><td colspan="7" class="no-data">No products</td></tr>`
+return
+
+}
+
+list.forEach((p,i)=>{
+
+const tr=document.createElement("tr")
+
+let deleteCell=""
+
+if(editMode){
+
+deleteCell=`<td>
+<button class="delete-btn" onclick="deleteRow(this)">✖</button>
+</td>`
+
+}
+
+tr.innerHTML=`
+
+${deleteCell}
+
+<td>${i+1}</td>
+
+<td ${editMode?'contenteditable="true" class="editable"':''}>
+${p.Section||""}
+</td>
+
+<td ${editMode?'contenteditable="true" class="editable"':''}>
+${p.Product_Name_EN||""}
+</td>
+
+<td ${editMode?'contenteditable="true" class="editable"':''}>
+${detectDate(p.Standard_Temp)}
+</td>
+
+<td ${editMode?'contenteditable="true" class="editable"':''}>
+${detectDate(p.Preparation_Duration)}
+</td>
+
+<td ${editMode?'contenteditable="true" class="editable"':''}>
+${p.Time_Unit||""}
+</td>
+
+`
+
+body.appendChild(tr)
+
+})
+
+}
+
+/* =========================
+DELETE ROW
+========================= */
+
+window.deleteRow=function(btn){
+
+btn.closest("tr").remove()
+
+}
+
+/* =========================
+EDIT MODE
+========================= */
+
+document.getElementById("editBtn").onclick=()=>{
+
+const pass=prompt("Enter Password")
+
+if(pass!==ADMIN_PASS){
+alert("Wrong Password")
+return
+}
+
+editMode=true
+
+document.getElementById("saveBtn").style.display="inline-block"
+
+renderTable()
+
+}
+
+/* =========================
+SAVE
+========================= */
+
+document.getElementById("saveBtn").onclick=async()=>{
+
+if(!confirm("Confirm changes?")) return
+
+const rows=document.querySelectorAll("#productsBody tr")
+
+let newProducts=[]
+
+rows.forEach(r=>{
+
+const cells=r.querySelectorAll("td")
+
+if(cells.length<6) return
+
+const product={
+
+Section:cells[1].innerText.trim(),
+Product_Name_EN:cells[2].innerText.trim(),
+Standard_Temp:cells[3].innerText.trim(),
+Preparation_Duration:cells[4].innerText.trim(),
+Time_Unit:cells[5].innerText.trim()
+
+}
+
+if(product.Product_Name_EN)
+newProducts.push(product)
+
+})
+
+products=newProducts
+
+updateGlobalStore()
+
+try{
+
+await fetch(API_URL,{
+method:"POST",
+body:JSON.stringify({
+action:"replaceProducts",
+data:products
+})
+})
+
+alert("✅ Updated Successfully")
+
+}catch{
+
+alert("⚠ Sync Error")
+
+}
+
+editMode=false
+
+document.getElementById("saveBtn").style.display="none"
+
+renderSections()
+renderTable()
+
+}
+
+/* =========================
+SEARCH
+========================= */
+
+document.getElementById("productSearch").addEventListener("input",e=>{
+
+search=e.target.value
+renderTable()
+
+})
+
+/* =========================
+SECTIONS BUTTON
+========================= */
+
+document.getElementById("toggleSections").onclick=()=>{
+
+const bar=document.getElementById("sectionsBar")
+
+bar.style.display=
+bar.style.display==="flex"
+?"none":"flex"
+
+}
+
+document.getElementById("btnAll").onclick=()=>{
+
+currentSection="all"
+renderTable()
+
+}
+
+document.getElementById("refreshProducts").onclick=loadProducts
+
+/* =========================
+INIT
+========================= */
+
+function init(){
+
+loadCache()
+loadProducts()
+
+}
+
+document.addEventListener("pageLoaded",init)
+
+})();
+</script>

@@ -1,0 +1,398 @@
+<style>
+
+:root{
+--card-bg:#ffffff;
+--card-shadow:rgba(0,0,0,0.07);
+--text-primary:#212529;
+--text-secondary:#6c757d;
+--border-color:#e9ecef;
+--primary-accent:#0d6efd;
+--success-light:rgba(25,135,84,0.1);
+--warning-light:rgba(255,193,7,0.1);
+--danger-light:rgba(220,53,69,0.1);
+}
+
+.dashboard-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+color:var(--text-primary);
+}
+
+.cards-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+gap:15px;
+margin-bottom:25px
+}
+
+.card-box{
+background:#fff;
+border-radius:12px;
+padding:20px;
+text-align:center;
+box-shadow:0 4px 10px var(--card-shadow);
+border:1px solid var(--border-color)
+}
+
+.card-number{
+font-size:24px;
+font-weight:700;
+color:var(--primary-accent)
+}
+
+.section-title{
+font-size:1.3rem;
+font-weight:700;
+margin:25px 0 15px
+}
+
+.heatmap-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+gap:10px
+}
+
+.heatmap-item{
+padding:14px;
+border-radius:8px;
+text-align:center;
+color:#fff;
+font-weight:700
+}
+
+.chart-box{
+background:#fff;
+padding:20px;
+border-radius:12px;
+margin-bottom:25px;
+border:1px solid #e5e7eb
+}
+
+.ai-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+gap:15px
+}
+
+.ai-card{
+background:#fff;
+padding:16px;
+border-radius:10px;
+border-left:6px solid #22c55e
+}
+
+.table-box{
+background:#fff;
+border-radius:12px;
+overflow:auto;
+border:1px solid #e5e7eb
+}
+
+.table-box table{
+width:100%;
+border-collapse:collapse
+}
+
+.table-box th{
+background:#0d6efd;
+color:#fff;
+padding:10px
+}
+
+.table-box td{
+padding:8px;
+border-top:1px solid #eee;
+text-align:center
+}
+
+</style>
+
+
+<div class="dashboard-wrapper">
+
+<h2 class="section-title">🍳 Smart Kitchen Monitoring</h2>
+
+<div class="cards-grid">
+
+<div class="card-box">
+Products
+<div id="productsCount" class="card-number">0</div>
+</div>
+
+<div class="card-box">
+Active Timers
+<div id="activeTimersCount" class="card-number">0</div>
+</div>
+
+<div class="card-box">
+Expiring Soon
+<div id="expiringSoon" class="card-number">0</div>
+</div>
+
+<div class="card-box">
+Expired
+<div id="expiredNow" class="card-number">0</div>
+</div>
+
+<div class="card-box">
+Kitchen Load
+<div id="kitchenLoad" class="card-number">0</div>
+</div>
+
+<div class="card-box">
+Top Section
+<div id="topSection" class="card-number">--</div>
+</div>
+
+</div>
+
+
+<h3 class="section-title">🔥 Section Heatmap</h3>
+<div id="heatmap" class="heatmap-grid"></div>
+
+
+<div class="chart-box">
+<canvas id="sectionChart"></canvas>
+</div>
+
+<div class="chart-box">
+<canvas id="dailyChart"></canvas>
+</div>
+
+<div class="chart-box">
+<h3>🤖 AI Restaurant Analytics</h3>
+<div id="aiAnalytics" class="ai-grid"></div>
+</div>
+
+<div class="chart-box">
+<h3>🔮 AI Predictions</h3>
+<div id="aiPredictions" class="ai-grid"></div>
+</div>
+
+<div class="chart-box">
+<h3>📈 Profit / Waste</h3>
+<div id="profitWaste" class="ai-grid"></div>
+</div>
+
+<div class="chart-box">
+<h3>🧠 Production Suggestions</h3>
+<div id="productionAI" class="ai-grid"></div>
+</div>
+
+<div class="chart-box">
+<canvas id="wasteChart"></canvas>
+</div>
+
+<div class="table-box">
+
+<table>
+
+<thead>
+<tr>
+<th>Section</th>
+<th>Product</th>
+<th>Qty</th>
+<th>Time Left</th>
+</tr>
+</thead>
+
+<tbody id="reportsTable"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+(function(){
+
+let sectionChart,dailyChart,wasteChart
+
+function getData(){
+
+return{
+
+products:JSON.parse(localStorage.getItem("products")||"[]"),
+timers:JSON.parse(localStorage.getItem("timers")||"[]"),
+alerts:JSON.parse(localStorage.getItem("alertLogs")||"[]")
+
+}
+
+}
+
+function formatRemaining(ms){
+
+if(ms<=0)return"Expired"
+
+let s=Math.floor(ms/1000)
+let h=Math.floor(s/3600)
+let m=Math.floor((s%3600)/60)
+
+return h+"h "+m+"m"
+
+}
+
+function updateDashboard(){
+
+const data=getData()
+
+const timers=data.timers
+const products=data.products
+const alerts=data.alerts
+
+document.getElementById("productsCount").innerText=products.length
+
+const now=Date.now()
+
+let active=timers.filter(t=>t.expirationTime>now)
+let soon=timers.filter(t=>t.expirationTime-now<1800000 && t.expirationTime>now)
+let expired=timers.filter(t=>t.expirationTime<=now)
+
+document.getElementById("activeTimersCount").innerText=active.length
+document.getElementById("expiringSoon").innerText=soon.length
+document.getElementById("expiredNow").innerText=expired.length
+document.getElementById("kitchenLoad").innerText=active.length
+
+let map={}
+active.forEach(t=>{
+map[t.section]=(map[t.section]||0)+1
+})
+
+let top=Object.keys(map).sort((a,b)=>map[b]-map[a])[0]||"--"
+
+document.getElementById("topSection").innerText=top
+
+renderHeatmap(active)
+renderCharts(timers)
+runAI(data)
+renderTable(timers)
+
+}
+
+function renderHeatmap(active){
+
+const container=document.getElementById("heatmap")
+
+container.innerHTML=""
+
+let map={}
+
+active.forEach(t=>{
+map[t.section]=(map[t.section]||0)+1
+})
+
+Object.keys(map).forEach(sec=>{
+
+let level=Math.min(map[sec]*40,255)
+
+let div=document.createElement("div")
+
+div.className="heatmap-item"
+
+div.style.background=`rgb(${level},80,80)`
+
+div.innerText=sec+" ("+map[sec]+")"
+
+container.appendChild(div)
+
+})
+
+}
+
+function renderCharts(timers){
+
+let map={}
+
+timers.forEach(t=>{
+map[t.section]=(map[t.section]||0)+1
+})
+
+if(sectionChart)sectionChart.destroy()
+
+sectionChart=new Chart(sectionChartCanvas,{
+type:"bar",
+data:{
+labels:Object.keys(map),
+datasets:[{data:Object.values(map)}]
+}
+})
+
+let map2={}
+
+timers.forEach(t=>{
+let d=new Date(t.preparedTime).toLocaleDateString()
+map2[d]=(map2[d]||0)+1
+})
+
+if(dailyChart)dailyChart.destroy()
+
+dailyChart=new Chart(dailyChartCanvas,{
+type:"line",
+data:{
+labels:Object.keys(map2),
+datasets:[{data:Object.values(map2)}]
+}
+})
+
+}
+
+function runAI(data){
+
+let sold=data.alerts.filter(a=>a.type==="sell").length
+let disposed=data.alerts.filter(a=>a.type==="dispose").length
+
+let wasteRate = sold+disposed===0 ? 0 :
+Math.round((disposed/(sold+disposed))*100)
+
+document.getElementById("aiAnalytics").innerHTML=`
+
+<div class="ai-card">Waste Rate: ${wasteRate}%</div>
+<div class="ai-card">Sold: ${sold}</div>
+<div class="ai-card">Disposed: ${disposed}</div>
+
+`
+
+}
+
+function renderTable(timers){
+
+const body=document.getElementById("reportsTable")
+
+body.innerHTML=""
+
+timers.forEach(t=>{
+
+const tr=document.createElement("tr")
+
+tr.innerHTML=`
+
+<td>${t.section}</td>
+<td>${t.product}</td>
+<td>${t.quantity}</td>
+<td>${formatRemaining(t.expirationTime-Date.now())}</td>
+
+`
+
+body.appendChild(tr)
+
+})
+
+}
+
+function init(){
+
+updateDashboard()
+
+setInterval(updateDashboard,1000)
+
+}
+
+document.addEventListener("pageLoaded",init)
+
+})()
+
+</script>

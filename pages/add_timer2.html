@@ -1,0 +1,504 @@
+<style>
+
+.addtimer-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+animation:fadeIn .4s ease
+}
+
+@keyframes fadeIn{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:translateY(0)}
+}
+
+/* TOOLBAR */
+
+.toolbar{
+display:flex;
+gap:10px;
+align-items:center;
+flex-wrap:wrap;
+margin-bottom:15px
+}
+
+.search-input{
+max-width:220px
+}
+
+.toolbar-btn{
+border:none;
+padding:7px 14px;
+border-radius:8px;
+cursor:pointer;
+font-weight:600;
+background:#0d6efd;
+color:white
+}
+
+.toolbar-btn.secondary{
+background:#6c757d
+}
+
+/* SECTIONS */
+
+.sections-grid{
+display:none;
+flex-wrap:wrap;
+gap:8px;
+margin-bottom:15px
+}
+
+.section-btn{
+border:none;
+padding:8px 14px;
+border-radius:10px;
+cursor:pointer;
+font-weight:600;
+color:white
+}
+
+.section-btn.active{
+outline:3px solid #00000033
+}
+
+/* TABLE */
+
+.products-table{
+background:#fff;
+border-radius:12px;
+overflow:hidden;
+border:1px solid #e3e6ef
+}
+
+.products-table table{
+width:100%;
+border-collapse:collapse
+}
+
+.products-table th{
+background:#eef4ff;
+padding:12px;
+text-align:center;
+font-weight:700
+}
+
+.products-table td{
+padding:8px;
+border-top:1px solid #e3e6ef;
+text-align:center
+}
+
+.qty-input{width:70px;text-align:center}
+.date-input{width:140px}
+
+.add-btn{
+background:#16a34a;
+color:#fff;
+border:none;
+padding:6px 12px;
+border-radius:8px;
+cursor:pointer
+}
+
+.success-msg{text-align:center;color:#16a34a;font-weight:700;margin-top:10px}
+.error-msg{text-align:center;color:#dc2626;font-weight:700;margin-top:10px}
+
+</style>
+
+
+<div class="addtimer-wrapper">
+
+<h2>⏱ Add Timer</h2>
+
+<div class="toolbar">
+
+<input id="productSearch"
+class="form-control search-input"
+placeholder="Search">
+
+<button id="btnAll" class="toolbar-btn">All</button>
+
+<button id="btnSections" class="toolbar-btn secondary">
+Sections
+</button>
+
+</div>
+
+<div id="sectionsBar" class="sections-grid"></div>
+
+
+<div class="products-table">
+
+<table>
+
+<thead>
+<tr>
+<th>Section</th>
+<th>Product</th>
+<th>Duration</th>
+<th>Qty</th>
+<th>Prep Date</th>
+<th>Expiry Date</th>
+<th>Add</th>
+</tr>
+</thead>
+
+<tbody id="productsBody">
+<tr>
+<td colspan="7">Loading...</td>
+</tr>
+</tbody>
+
+</table>
+
+</div>
+
+<div id="successMsg" class="success-msg"></div>
+<div id="errorMsg" class="error-msg"></div>
+
+</div>
+
+
+<script>
+(function(){
+
+let products=[]
+let settings=[]
+let currentSection="all"
+let search=""
+
+const sectionColors=[
+"#ef4444","#f97316","#f59e0b","#10b981",
+"#3b82f6","#6366f1","#8b5cf6","#ec4899"
+]
+
+
+/* LOAD PRODUCTS */
+
+function loadProducts(){
+
+products=(window.DataStore && DataStore.products) ||
+JSON.parse(localStorage.getItem("products")||"[]")
+
+settings=
+JSON.parse(localStorage.getItem("sectionsSettings")||"[]")
+
+renderSections()
+renderTable()
+
+}
+
+
+/* GET SECTION SETTINGS */
+
+function getSectionSettings(section){
+return settings.find(s=>s.section===section) || {}
+}
+
+
+/* GET PRODUCT SECTION */
+
+function getProductSection(p){
+return p.Section || p.section || "Other"
+}
+
+
+/* RENDER SECTIONS */
+
+function renderSections(){
+
+const bar=document.getElementById("sectionsBar")
+bar.innerHTML=""
+
+const sections=[...new Set(products.map(p=>getProductSection(p)))]
+
+sections.forEach((sec,i)=>{
+
+const btn=document.createElement("button")
+
+btn.textContent=sec
+btn.className="section-btn"
+
+btn.style.background=
+sectionColors[i % sectionColors.length]
+
+if(sec===currentSection)
+btn.classList.add("active")
+
+btn.onclick=()=>{
+
+currentSection=sec
+
+renderSections()
+renderTable()
+
+}
+
+bar.appendChild(btn)
+
+})
+
+}
+
+
+/* FILTER PRODUCTS */
+
+function getFiltered(){
+
+let list=[...products]
+
+if(currentSection!=="all"){
+
+list=list.filter(p=>{
+
+return getProductSection(p)===currentSection
+
+})
+
+}
+
+if(search){
+
+const q=search.toLowerCase()
+
+list=list.filter(p=>
+Object.values(p).join("").toLowerCase().includes(q)
+)
+
+}
+
+return list
+
+}
+
+
+/* RENDER TABLE */
+
+function renderTable(){
+
+const body=document.getElementById("productsBody")
+
+const list=getFiltered()
+
+body.innerHTML=""
+
+if(!list.length){
+
+body.innerHTML=`<tr><td colspan="7">No Products</td></tr>`
+return
+
+}
+
+list.forEach((p,i)=>{
+
+const section=getProductSection(p)
+
+const s=getSectionSettings(section)
+
+const tr=document.createElement("tr")
+
+tr.innerHTML=`
+
+<td>${section}</td>
+
+<td>${p.Product_Name_EN || ""}</td>
+
+<td>${p.Preparation_Duration || ""}</td>
+
+<td>
+${s.manualQty ?
+`<input type="number" min="1" class="qty-input" id="qty${i}">`
+:`1`}
+</td>
+
+<td>
+${s.manualPrep ?
+`<input type="date" class="date-input" id="prep${i}">`
+:`Auto`}
+</td>
+
+<td>
+${s.manualExpiry ?
+`<input type="date" class="date-input" id="exp${i}">`
+:`Auto`}
+</td>
+
+<td>
+<button class="add-btn" onclick="addTimer(${i},this)">➕</button>
+</td>
+
+`
+
+body.appendChild(tr)
+
+})
+
+}
+
+
+/* ADD TIMER */
+
+window.addTimer=function(i,btn){
+
+const list=getFiltered()
+
+const prod=list[i]
+
+const section=getProductSection(prod)
+
+const s=getSectionSettings(section)
+
+let qty=1
+let preparedTime=Date.now()
+let expirationTime=0
+let dateMode=false
+
+
+/* quantity */
+
+if(s.manualQty){
+
+qty=parseInt(document.getElementById("qty"+i).value)
+
+if(!qty || qty<1){
+showError("Enter quantity")
+return
+}
+
+}
+
+
+/* preparation date */
+
+if(s.manualPrep){
+
+const val=document.getElementById("prep"+i).value
+
+if(!val){
+showError("Select preparation date")
+return
+}
+
+preparedTime = DateEngine.toTimestamp(val) || Date.now()
+dateMode=true
+
+}
+
+
+/* expiry */
+
+if(s.manualExpiry){
+
+const val=document.getElementById("exp"+i).value
+
+if(!val){
+showError("Select expiry date")
+return
+}
+
+expirationTime = DateEngine.toTimestamp(val) || preparedTime
+dateMode=true
+
+}else{
+
+let duration = Number(prod.Preparation_Duration) || 1
+
+let ms = duration * 3600000
+
+if(s.timeUnit==="minutes")
+ms = duration * 60000
+
+if(s.timeUnit==="days")
+ms = duration * 86400000
+
+expirationTime = preparedTime + ms
+
+}
+
+
+let timers=
+JSON.parse(localStorage.getItem("timers")||"[]")
+
+timers.push({
+
+id:Date.now(),
+section:section,
+product:prod.Product_Name_EN,
+duration: Number(prod.Preparation_Duration) || 0,
+quantity:qty,
+
+preparedTime:preparedTime,
+expirationTime:expirationTime,
+
+dateMode:dateMode,
+
+soundEnabled:s.soundEnabled,
+repeatAlert:s.repeatAlert
+
+})
+
+localStorage.setItem("timers",JSON.stringify(timers))
+
+btn.closest("tr").remove()
+
+showSuccess("Timer Added")
+
+document.dispatchEvent(new Event("dataSynced"))
+
+}
+
+
+/* MESSAGES */
+
+function showSuccess(msg){
+const el=document.getElementById("successMsg")
+el.innerText=msg
+setTimeout(()=>el.innerText="",1500)
+}
+
+function showError(msg){
+const el=document.getElementById("errorMsg")
+el.innerText=msg
+setTimeout(()=>el.innerText="",2000)
+}
+
+
+/* EVENTS */
+
+document.getElementById("productSearch")
+.addEventListener("input",e=>{
+
+search=e.target.value
+renderTable()
+
+})
+
+
+document.getElementById("btnAll").onclick=()=>{
+
+currentSection="all"
+renderSections()
+renderTable()
+
+}
+
+
+document.getElementById("btnSections").onclick=()=>{
+
+const bar=document.getElementById("sectionsBar")
+
+bar.style.display=
+bar.style.display==="flex" ? "none" : "flex"
+
+}
+
+
+/* INIT */
+
+function init(){
+loadProducts()
+}
+
+document.addEventListener("pageLoaded",init)
+
+})();
+</script>

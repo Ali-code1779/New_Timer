@@ -1,0 +1,475 @@
+<style>
+
+/* ===============================
+CARD
+=============================== */
+
+.actions-section{
+background:#ffffff;
+border-radius:16px;
+box-shadow:0 6px 18px rgba(0,0,0,0.08);
+padding:25px;
+max-width:1100px;
+margin:auto;
+}
+
+.actions-section h2{
+text-align:center;
+color:#0d6efd;
+font-weight:700;
+margin-bottom:20px;
+}
+
+/* ===============================
+TABLE
+=============================== */
+
+.settings-table{
+width:100%;
+border-collapse:collapse;
+font-size:14px;
+}
+
+.settings-table thead{
+background:#0d6efd;
+color:white;
+}
+
+.settings-table th{
+padding:12px;
+text-align:center;
+font-weight:600;
+}
+
+.settings-table td{
+padding:10px;
+text-align:center;
+border-bottom:1px solid #e6e6e6;
+}
+
+.settings-table tbody tr:hover{
+background:#f5f9ff;
+}
+
+.settings-table select{
+padding:4px 6px;
+border-radius:6px;
+border:1px solid #ccc;
+}
+
+/* ===============================
+BUTTONS
+=============================== */
+
+.actions-buttons{
+margin-top:20px;
+text-align:center;
+}
+
+.actions-buttons button{
+margin:5px;
+padding:8px 16px;
+font-weight:600;
+}
+
+.control-bar{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+margin-bottom:10px;
+justify-content:center;
+}
+
+</style>
+
+
+<section class="actions-section">
+
+<h2 data-key="soundTitle">🔊 Enterprise Sound Engine</h2>
+
+<div class="control-bar">
+
+<button id="masterMuteBtn" class="btn btn-danger">
+🔇 Master Mute
+</button>
+
+<button id="testAllBtn" class="btn btn-primary">
+🎧 Test All Sounds
+</button>
+
+<select id="profileSelect" class="form-control" style="max-width:200px">
+<option value="kitchen">Kitchen Profile</option>
+<option value="restaurant">Restaurant Profile</option>
+<option value="silent">Silent Profile</option>
+</select>
+
+</div>
+
+<div style="margin-bottom:15px;text-align:center">
+
+<input type="file" id="soundUpload" accept="audio/*">
+
+</div>
+
+
+<div style="overflow-x:auto">
+
+<table class="settings-table">
+
+<thead>
+<tr>
+<th>#</th>
+<th data-key="section">Section</th>
+<th data-key="warning">Warning</th>
+<th data-key="expired">Expired</th>
+<th data-key="priority">Priority</th>
+<th data-key="repeat">Repeat</th>
+<th data-key="volume">Volume</th>
+<th data-key="delay">Delay</th>
+<th data-key="preview">Preview</th>
+</tr>
+</thead>
+
+<tbody id="soundSettingsBody"></tbody>
+
+</table>
+
+</div>
+
+</section>
+
+
+<script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
+
+<script>
+(function(){
+
+let MASTER_MUTE=false
+let settings={}
+
+/* ===============================
+TRANSLATIONS
+=============================== */
+
+const translations={
+
+ar:{
+soundTitle:"نظام الصوت الاحترافي",
+section:"القسم",
+warning:"تنبيه",
+expired:"انتهاء",
+priority:"الأولوية",
+repeat:"التكرار",
+volume:"الصوت",
+delay:"التأخير",
+preview:"اختبار"
+},
+
+en:{
+soundTitle:"Enterprise Sound Engine",
+section:"Section",
+warning:"Warning",
+expired:"Expired",
+priority:"Priority",
+repeat:"Repeat",
+volume:"Volume",
+delay:"Delay",
+preview:"Preview"
+}
+
+}
+
+function applyLang(){
+
+const lang=window.APP_LANG || localStorage.getItem("lang") || "ar"
+
+document.querySelectorAll("[data-key]").forEach(el=>{
+
+const key=el.dataset.key
+
+if(translations[lang] && translations[lang][key]){
+el.textContent=translations[lang][key]
+}
+
+})
+
+}
+
+document.addEventListener("appLanguageChanged",applyLang)
+
+/* ===============================
+GET SECTIONS
+=============================== */
+
+function getSections(){
+
+let products=[]
+
+if(window.DataStore && DataStore.products)
+products=DataStore.products
+else
+products=JSON.parse(localStorage.getItem("products")||"[]")
+
+return [...new Set(products.map(p=>p.Section || p.section || "Other"))]
+
+}
+
+/* ===============================
+SOUND LIBRARY 40+
+=============================== */
+
+const soundLibrary=[
+"beep","bell","alarm","chime","ding","metal","alert",
+"warning","service","kitchen","notify","pop","buzz",
+...Array.from({length:30},(_,i)=>"extra_"+i)
+]
+
+const soundCache={}
+
+function loadSound(id){
+
+if(soundCache[id]) return
+
+soundCache[id]=new Howl({
+src:["https://actions.google.com/sounds/v1/alarms/beep_short.ogg"],
+volume:1
+})
+
+}
+
+soundLibrary.forEach(loadSound)
+
+/* ===============================
+SETTINGS
+=============================== */
+
+function getSettings(){
+
+try{
+return JSON.parse(localStorage.getItem("soundSettings")||"{}")
+}catch{
+return{}
+}
+
+}
+
+function saveSettings(s){
+localStorage.setItem("soundSettings",JSON.stringify(s))
+}
+
+/* ===============================
+TABLE
+=============================== */
+
+function renderTable(){
+
+settings=getSettings()
+
+const body=document.getElementById("soundSettingsBody")
+
+body.innerHTML=""
+
+getSections().forEach((sec,i)=>{
+
+const s=settings[sec] || {
+warning:"beep",
+expired:"alarm",
+priority:1,
+repeat:1,
+volume:1,
+delay:5
+}
+
+body.innerHTML+=`
+
+<tr>
+
+<td>${i+1}</td>
+
+<td><strong>${sec}</strong></td>
+
+<td>
+<select onchange="updateSetting('${sec}','warning',this.value)">
+${soundLibrary.map(x=>`
+<option value="${x}" ${x===s.warning?"selected":""}>${x}</option>
+`).join("")}
+</select>
+</td>
+
+<td>
+<select onchange="updateSetting('${sec}','expired',this.value)">
+${soundLibrary.map(x=>`
+<option value="${x}" ${x===s.expired?"selected":""}>${x}</option>
+`).join("")}
+</select>
+</td>
+
+<td>
+<select onchange="updateSetting('${sec}','priority',this.value)">
+${[1,2,3,4,5].map(p=>`
+<option value="${p}" ${p==s.priority?"selected":""}>${p}</option>
+`).join("")}
+</select>
+</td>
+
+<td>
+<select onchange="updateSetting('${sec}','repeat',this.value)">
+${[1,2,3,4,5].map(p=>`
+<option value="${p}" ${p==s.repeat?"selected":""}>${p}</option>
+`).join("")}
+<option value="infinite">∞</option>
+</select>
+</td>
+
+<td>
+<input type="range" min="0" max="1" step="0.1"
+value="${s.volume}"
+onchange="updateSetting('${sec}','volume',this.value)">
+</td>
+
+<td>
+<input type="number" value="${s.delay}" style="width:60px"
+onchange="updateSetting('${sec}','delay',this.value)">
+</td>
+
+<td>
+<button onclick="previewSound('${s.warning}')">▶</button>
+</td>
+
+</tr>
+`
+
+})
+
+}
+
+/* ===============================
+UPDATE
+=============================== */
+
+window.updateSetting=function(section,key,val){
+
+settings=getSettings()
+
+if(!settings[section]) settings[section]={}
+
+settings[section][key]=val
+
+saveSettings(settings)
+
+}
+
+/* ===============================
+PREVIEW
+=============================== */
+
+window.previewSound=function(sound){
+
+if(MASTER_MUTE) return
+
+if(!soundCache[sound]) return
+
+soundCache[sound].stop()
+soundCache[sound].play()
+
+}
+
+/* ===============================
+MASTER MUTE
+=============================== */
+
+document.getElementById("masterMuteBtn").onclick=function(){
+
+MASTER_MUTE=!MASTER_MUTE
+
+alert(MASTER_MUTE?"Muted":"Sound Enabled")
+
+}
+
+/* ===============================
+TEST ALL
+=============================== */
+
+document.getElementById("testAllBtn").onclick=async()=>{
+
+for(const s of soundLibrary){
+
+previewSound(s)
+
+await new Promise(r=>setTimeout(r,250))
+
+}
+
+}
+
+/* ===============================
+PROFILES
+=============================== */
+
+document.getElementById("profileSelect").onchange=function(){
+
+const profile=this.value
+
+settings={}
+
+getSections().forEach(sec=>{
+
+if(profile==="kitchen")
+settings[sec]={warning:"beep",expired:"alarm",repeat:3,volume:1}
+
+if(profile==="restaurant")
+settings[sec]={warning:"bell",expired:"ding",repeat:2,volume:.8}
+
+if(profile==="silent")
+settings[sec]={warning:"beep",expired:"beep",repeat:1,volume:.2}
+
+})
+
+saveSettings(settings)
+
+renderTable()
+
+}
+
+/* ===============================
+SOUND ENGINE
+=============================== */
+
+window.SectionSoundEngine={
+
+playWarning(section){
+
+const s=getSettings()[section]
+
+if(!s || MASTER_MUTE) return
+
+previewSound(s.warning)
+
+},
+
+playExpired(section){
+
+const s=getSettings()[section]
+
+if(!s || MASTER_MUTE) return
+
+previewSound(s.expired)
+
+}
+
+}
+
+/* ===============================
+INIT
+=============================== */
+
+document.addEventListener("pageLoaded",()=>{
+
+renderTable()
+
+applyLang()
+
+})
+
+})();
+</script>

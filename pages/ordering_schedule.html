@@ -1,0 +1,409 @@
+<style>
+
+.orders-calendar-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+color:#1e293b;
+animation:fadeIn .4s ease
+}
+
+@keyframes fadeIn{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:translateY(0)}
+}
+
+/* HEADER */
+
+.calendar-header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:15px
+}
+
+.calendar-header button{
+padding:6px 10px;
+border:none;
+border-radius:6px;
+background:#0d6efd;
+color:#fff;
+cursor:pointer
+}
+
+.calendar-title{
+font-size:20px;
+font-weight:700
+}
+
+/* CALENDAR */
+
+.calendar-grid{
+
+display:grid;
+grid-template-columns:repeat(7,1fr);
+gap:6px
+
+}
+
+.calendar-day-name{
+
+text-align:center;
+font-weight:700;
+padding:6px;
+background:#f1f5f9;
+border-radius:6px
+
+}
+
+.calendar-day{
+
+min-height:110px;
+background:#fff;
+border:1px solid #e5e7eb;
+border-radius:10px;
+padding:5px;
+font-size:12px;
+cursor:pointer;
+position:relative
+
+}
+
+.day-number{
+font-weight:700;
+margin-bottom:4px
+}
+
+.order-item{
+
+background:#0d6efd;
+color:#fff;
+padding:2px 4px;
+border-radius:4px;
+margin-bottom:2px;
+font-size:11px;
+overflow:hidden;
+white-space:nowrap;
+text-overflow:ellipsis
+
+}
+
+/* MODAL */
+
+.order-modal{
+
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,.4);
+display:none;
+align-items:center;
+justify-content:center
+
+}
+
+.modal-box{
+
+background:#fff;
+padding:20px;
+border-radius:10px;
+width:400px;
+max-width:90%
+
+}
+
+.modal-box input,
+.modal-box textarea{
+
+width:100%;
+margin-bottom:6px;
+padding:6px;
+border-radius:6px;
+border:1px solid #cbd5f5
+
+}
+
+.modal-buttons{
+
+text-align:right
+
+}
+
+.modal-buttons button{
+
+padding:6px 10px;
+border:none;
+border-radius:6px;
+margin-left:5px;
+cursor:pointer
+
+}
+
+.btn-save{background:#16a34a;color:#fff}
+.btn-cancel{background:#ef4444;color:#fff}
+
+</style>
+
+
+
+<div class="orders-calendar-wrapper">
+
+<div class="calendar-header">
+
+<button id="prevMonth">◀</button>
+
+<div class="calendar-title" id="calendarTitle"></div>
+
+<button id="nextMonth">▶</button>
+
+</div>
+
+
+<div class="calendar-grid" id="calendarGrid"></div>
+
+</div>
+
+
+
+<div class="order-modal" id="orderModal">
+
+<div class="modal-box">
+
+<h3>📦 Order</h3>
+
+<input id="supplierName" placeholder="Supplier">
+
+<input id="supplierPhone" placeholder="Phone">
+
+<input id="prepareTime" type="time">
+
+<input id="deliveryTime" type="time">
+
+<input id="orderResponsible" placeholder="Order Responsible">
+
+<input id="receiveResponsible" placeholder="Receive Responsible">
+
+<textarea id="notes" placeholder="Notes"></textarea>
+
+<div class="modal-buttons">
+
+<button class="btn-save" id="saveOrder">Save</button>
+
+<button class="btn-cancel" id="closeModal">Cancel</button>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<script>
+
+(function(){
+
+let orders=[]
+let currentDate=new Date()
+let selectedDate=null
+
+const dayNames=["Sat","Sun","Mon","Tue","Wed","Thu","Fri"]
+
+/* ======================
+LOAD ORDERS
+====================== */
+
+function loadOrders(){
+
+try{
+
+orders=JSON.parse(localStorage.getItem("ordersSchedule")||"[]")
+
+}catch{
+
+orders=[]
+
+}
+
+}
+
+
+/* ======================
+SAVE
+====================== */
+
+function saveOrders(){
+
+localStorage.setItem("ordersSchedule",JSON.stringify(orders))
+
+}
+
+
+/* ======================
+CALENDAR
+====================== */
+
+function renderCalendar(){
+
+const grid=document.getElementById("calendarGrid")
+
+grid.innerHTML=""
+
+/* DAYS HEADER */
+
+dayNames.forEach(d=>{
+
+const div=document.createElement("div")
+
+div.className="calendar-day-name"
+div.textContent=d
+
+grid.appendChild(div)
+
+})
+
+
+const year=currentDate.getFullYear()
+const month=currentDate.getMonth()
+
+document.getElementById("calendarTitle")
+.textContent=currentDate.toLocaleDateString(undefined,{month:"long",year:"numeric"})
+
+
+const firstDay=new Date(year,month,1)
+const lastDay=new Date(year,month+1,0)
+
+const start=firstDay.getDay()
+const totalDays=lastDay.getDate()
+
+
+for(let i=0;i<start;i++){
+
+grid.appendChild(document.createElement("div"))
+
+}
+
+
+for(let d=1; d<=totalDays; d++){
+
+const date=new Date(year,month,d)
+
+const cell=document.createElement("div")
+
+cell.className="calendar-day"
+
+cell.innerHTML=`<div class="day-number">${d}</div>`
+
+/* ORDERS */
+
+orders
+.filter(o=>o.date===date.toISOString().split("T")[0])
+.forEach(o=>{
+
+const item=document.createElement("div")
+
+item.className="order-item"
+
+item.textContent=o.supplier+" "+o.delivery
+
+cell.appendChild(item)
+
+})
+
+cell.onclick=()=>openModal(date)
+
+grid.appendChild(cell)
+
+}
+
+}
+
+
+/* ======================
+MODAL
+====================== */
+
+function openModal(date){
+
+selectedDate=date
+
+orderModal.style.display="flex"
+
+}
+
+closeModal.onclick=()=>{
+
+orderModal.style.display="none"
+
+}
+
+
+/* ======================
+SAVE ORDER
+====================== */
+
+saveOrder.onclick=()=>{
+
+const order={
+
+date:selectedDate.toISOString().split("T")[0],
+
+supplier:supplierName.value,
+phone:supplierPhone.value,
+prepare:prepareTime.value,
+delivery:deliveryTime.value,
+orderResp:orderResponsible.value,
+receiveResp:receiveResponsible.value,
+notes:notes.value
+
+}
+
+orders.push(order)
+
+saveOrders()
+
+renderCalendar()
+
+orderModal.style.display="none"
+
+}
+
+
+/* ======================
+MONTH NAV
+====================== */
+
+prevMonth.onclick=()=>{
+
+currentDate.setMonth(currentDate.getMonth()-1)
+
+renderCalendar()
+
+}
+
+nextMonth.onclick=()=>{
+
+currentDate.setMonth(currentDate.getMonth()+1)
+
+renderCalendar()
+
+}
+
+
+/* ======================
+INIT
+====================== */
+
+function init(){
+
+loadOrders()
+
+renderCalendar()
+
+}
+
+document.addEventListener("pageLoaded",init)
+
+})()
+
+</script>

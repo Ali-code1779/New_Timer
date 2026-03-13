@@ -1,0 +1,531 @@
+<style>
+
+.sound-wrapper{
+font-family:'Cairo','Segoe UI',sans-serif;
+animation:fadeIn .4s ease
+}
+
+@keyframes fadeIn{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:translateY(0)}
+}
+
+.settings-section{
+max-width:1100px;
+margin:auto;
+background:var(--card-bg);
+padding:24px;
+border-radius:12px;
+border:1px solid var(--border-color)
+}
+
+.sections-table{
+width:100%;
+border-collapse:collapse;
+margin-top:20px
+}
+
+.sections-table th,
+.sections-table td{
+padding:10px;
+border-bottom:1px solid #e5e7eb;
+text-align:center
+}
+
+.section-color{
+width:14px;
+height:14px;
+border-radius:50%;
+display:inline-block;
+margin-left:6px
+}
+
+.preview-btn{
+background:#fff;
+border:1px solid #0d6efd;
+color:#0d6efd;
+border-radius:6px;
+padding:4px 10px;
+cursor:pointer
+}
+
+.control-bar{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+margin-bottom:10px
+}
+
+.upload-box{
+margin-top:10px;
+padding:10px;
+border:1px dashed #ccc;
+border-radius:8px;
+text-align:center
+}
+
+</style>
+
+
+<div class="sound-wrapper">
+
+<div class="settings-section">
+
+<h3 style="text-align:center">🔊 Enterprise Sound Engine</h3>
+
+<div class="control-bar">
+
+<button id="masterMuteBtn" class="btn btn-danger">
+🔇 Master Mute
+</button>
+
+<button id="testAllBtn" class="btn btn-primary">
+🎧 Test All Sounds
+</button>
+
+<select id="profileSelect" class="form-control" style="max-width:200px">
+<option value="kitchen">Kitchen Profile</option>
+<option value="restaurant">Restaurant Profile</option>
+<option value="silent">Silent Profile</option>
+</select>
+
+</div>
+
+<div class="upload-box">
+📂 Upload Custom Sound
+<br><br>
+<input type="file" id="soundUpload" accept="audio/*">
+</div>
+
+<table class="sections-table">
+
+<thead>
+<tr>
+<th>#</th>
+<th>Section</th>
+<th>Warning</th>
+<th>Expired</th>
+<th>Priority</th>
+<th>Repeat</th>
+<th>Volume</th>
+<th>Delay</th>
+<th>Preview</th>
+</tr>
+</thead>
+
+<tbody id="sectionsGrid"></tbody>
+
+</table>
+
+</div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
+
+<script>
+
+(function(){
+
+/* ===============================
+GLOBAL SETTINGS
+=============================== */
+
+let MASTER_MUTE=false
+
+/* ===============================
+SECTION COLORS
+=============================== */
+
+const sectionColors=[
+"#ef4444","#f97316","#f59e0b","#10b981",
+"#3b82f6","#6366f1","#8b5cf6","#ec4899"
+]
+
+/* ===============================
+GET SECTIONS
+=============================== */
+
+function getSections(){
+
+let products=[]
+
+if(window.DataStore && DataStore.products)
+products=DataStore.products
+else
+products=JSON.parse(localStorage.getItem("products")||"[]")
+
+return [...new Set(products.map(p=>
+p.Section || p.section || p.category || "Other"
+))]
+
+}
+
+/* ===============================
+40+ SOUND LIBRARY
+=============================== */
+
+const soundLibrary=[
+
+{ id:"bell1",url:"https://actions.google.com/sounds/v1/cartoon/service_bell.ogg"},
+{ id:"bell2",url:"https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"},
+{ id:"alarm1",url:"https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"},
+{ id:"alarm2",url:"https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"},
+{ id:"beep1",url:"https://actions.google.com/sounds/v1/alarms/beep_short.ogg"},
+{ id:"timer1",url:"https://actions.google.com/sounds/v1/alarms/kitchen_timer.ogg"},
+{ id:"pop1",url:"https://actions.google.com/sounds/v1/cartoon/pop.ogg"},
+{ id:"clang1",url:"https://actions.google.com/sounds/v1/cartoon/clang.ogg"},
+{ id:"metal1",url:"https://actions.google.com/sounds/v1/cartoon/metal_thud_and_clank.ogg"},
+{ id:"drum1",url:"https://actions.google.com/sounds/v1/cartoon/concussive_drum_hit.ogg"},
+{ id:"whistle",url:"https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum_hit.ogg"},
+{ id:"siren",url:"https://actions.google.com/sounds/v1/alarms/siren.ogg"},
+
+/* duplicates for large library */
+
+...Array.from({length:30},(_,i)=>({
+id:"extra_"+i,
+url:"https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+}))
+
+]
+
+/* ===============================
+CACHE SOUNDS
+=============================== */
+
+const soundCache={}
+
+function loadSound(id,url){
+
+if(soundCache[id]) return
+
+soundCache[id]=new Howl({
+src:[url],
+preload:true,
+html5:false,
+volume:1,
+pool:5
+})
+
+}
+
+soundLibrary.forEach(s=>loadSound(s.id,s.url))
+
+/* ===============================
+UPLOAD CUSTOM SOUND
+=============================== */
+
+document.getElementById("soundUpload")
+.addEventListener("change",function(){
+
+const file=this.files[0]
+if(!file) return
+
+const reader=new FileReader()
+
+reader.onload=e=>{
+
+const id="custom_"+Date.now()
+const url=e.target.result
+
+soundLibrary.push({id,url})
+loadSound(id,url)
+
+renderSections()
+
+}
+
+reader.readAsDataURL(file)
+
+})
+
+/* ===============================
+UNLOCK AUDIO
+=============================== */
+
+window.addEventListener("click", function unlock(){
+
+Object.values(soundCache).forEach(s=>{
+try{
+s.volume(0)
+s.play()
+s.stop()
+s.volume(1)
+}catch(e){}
+})
+
+window.removeEventListener("click", unlock)
+
+})
+
+/* ===============================
+SETTINGS STORAGE
+=============================== */
+
+function getSettings(){
+return JSON.parse(localStorage.getItem("soundSettings")||"{}")
+}
+
+function saveSettings(s){
+localStorage.setItem("soundSettings",JSON.stringify(s))
+}
+
+function updateSetting(section,key,value){
+
+const settings=getSettings()
+
+if(!settings[section]) settings[section]={}
+
+settings[section][key]=value
+
+saveSettings(settings)
+
+}
+
+/* ===============================
+RENDER TABLE
+=============================== */
+
+function renderSections(){
+
+const grid=document.getElementById("sectionsGrid")
+grid.innerHTML=""
+
+const sections=getSections()
+const settings=getSettings()
+
+sections.forEach((sec,i)=>{
+
+const s=settings[sec] || {
+warning:"beep1",
+expired:"alarm1",
+priority:1,
+repeat:1,
+volume:1,
+delay:5
+}
+
+const color=sectionColors[i%sectionColors.length]
+
+const tr=document.createElement("tr")
+
+tr.innerHTML=`
+
+<td>${i+1}</td>
+
+<td>
+<span class="section-color"
+style="background:${color}"></span>
+${sec}
+</td>
+
+<td>
+<select onchange="updateSetting('${sec}','warning',this.value)">
+${soundLibrary.map(x=>`
+<option value="${x.id}" ${x.id===s.warning?"selected":""}>${x.id}</option>
+`).join("")}
+</select>
+</td>
+
+<td>
+<select onchange="updateSetting('${sec}','expired',this.value)">
+${soundLibrary.map(x=>`
+<option value="${x.id}" ${x.id===s.expired?"selected":""}>${x.id}</option>
+`).join("")}
+</select>
+</td>
+
+<td>
+<select onchange="updateSetting('${sec}','priority',this.value)">
+${[1,2,3,4,5].map(p=>`
+<option value="${p}" ${p==s.priority?"selected":""}>${p}</option>
+`).join("")}
+</select>
+</td>
+
+<td>
+<select onchange="updateSetting('${sec}','repeat',this.value)">
+${[1,2,3,4,5].map(p=>`
+<option value="${p}" ${p==s.repeat?"selected":""}>${p}</option>
+`).join("")}
+<option value="infinite">∞</option>
+</select>
+</td>
+
+<td>
+<input type="range" min="0" max="1" step="0.1"
+value="${s.volume}"
+onchange="updateSetting('${sec}','volume',this.value)">
+</td>
+
+<td>
+<input type="number" min="1"
+value="${s.delay}"
+style="width:60px"
+onchange="updateSetting('${sec}','delay',this.value)">
+</td>
+
+<td>
+<button class="preview-btn"
+onclick="previewSound(this.closest('tr').querySelector('select').value)">
+▶
+</button>
+</td>
+
+`
+
+grid.appendChild(tr)
+
+})
+
+}
+
+/* ===============================
+MASTER MUTE
+=============================== */
+
+document.getElementById("masterMuteBtn")
+.onclick=()=>{
+
+MASTER_MUTE=!MASTER_MUTE
+
+alert(MASTER_MUTE ? "🔇 Muted" : "🔊 Sound Enabled")
+
+}
+
+/* ===============================
+TEST ALL SOUNDS
+=============================== */
+
+document.getElementById("testAllBtn")
+.onclick=async ()=>{
+
+for(const s of soundLibrary){
+
+if(soundCache[s.id])
+previewSound(s.id)
+
+await new Promise(r=>setTimeout(r,400))
+
+}
+
+}
+
+/* ===============================
+SOUND PROFILES
+=============================== */
+
+document.getElementById("profileSelect")
+.onchange=function(){
+
+const profile=this.value
+
+const settings=getSettings()
+
+const sections=getSections()
+
+sections.forEach(sec=>{
+
+if(profile==="kitchen")
+settings[sec]={warning:"beep1",expired:"alarm1",repeat:3,volume:1,delay:3}
+
+if(profile==="restaurant")
+settings[sec]={warning:"bell1",expired:"bell2",repeat:2,volume:.8,delay:5}
+
+if(profile==="silent")
+settings[sec]={warning:"beep1",expired:"beep1",repeat:1,volume:.2,delay:10}
+
+})
+
+saveSettings(settings)
+renderSections()
+
+}
+
+/* ===============================
+ANTI SPAM SOUND
+=============================== */
+
+let lastSound={}
+
+function playSound(sound,s){
+
+if(!soundCache[sound]) return
+
+const now=Date.now()
+
+if(lastSound[sound] && now-lastSound[sound]<1500)
+return
+
+lastSound[sound]=now
+
+soundCache[sound].volume(s.volume || 1)
+
+let count=0
+
+const repeat = s.repeat==="infinite"
+? Infinity
+: parseInt(s.repeat || 1)
+
+const delay = (s.delay || 5) * 1000
+
+const play=()=>{
+
+soundCache[sound].stop()
+soundCache[sound].play()
+
+count++
+
+if(count < repeat){
+setTimeout(play,delay)
+}
+
+}
+
+play()
+
+}
+
+/* ===============================
+ENTERPRISE SOUND ENGINE
+=============================== */
+
+window.SectionSoundEngine={
+
+playWarning(section){
+
+const settings=getSettings()
+const s=settings[section]
+
+if(!s || MASTER_MUTE) return
+
+playSound(s.warning,s)
+
+},
+
+playExpired(section){
+
+const settings=getSettings()
+const s=settings[section]
+
+if(!s || MASTER_MUTE) return
+
+playSound(s.expired,s)
+
+}
+
+}
+
+
+/* ===============================
+INIT
+=============================== */
+
+function init(){
+renderSections()
+}
+
+document.addEventListener("pageLoaded",init)
+
+})();
+</script>
