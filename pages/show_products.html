@@ -222,7 +222,6 @@ return value
 /* =========================
 GLOBAL DATA STORE
 ========================= */
-
 function updateGlobalStore(){
 
 const sections=[...new Set(products.map(p=>p.Section||"Other"))]
@@ -232,8 +231,14 @@ if(!window.DataStore) window.DataStore={}
 DataStore.products=products
 DataStore.sections=sections
 
+/* CACHE */
+
 localStorage.setItem("products",JSON.stringify(products))
 localStorage.setItem("productSections",JSON.stringify(sections))
+
+/* وقت آخر تحديث */
+
+localStorage.setItem("products_cache_time",Date.now())
 
 document.dispatchEvent(new Event("dataSynced"))
 
@@ -271,12 +276,16 @@ console.error("API ERROR",e)
 /* =========================
 LOAD CACHE
 ========================= */
-
 function loadCache(){
 
 const cache=JSON.parse(localStorage.getItem("products")||"[]")
+const cacheTime=Number(localStorage.getItem("products_cache_time")||0)
 
-if(cache.length){
+/* مدة صلاحية الكاش 1 ساعة */
+
+const CACHE_LIFE=3600000
+
+if(cache.length && (Date.now()-cacheTime)<CACHE_LIFE){
 
 products=cache
 
