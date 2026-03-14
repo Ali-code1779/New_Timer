@@ -323,14 +323,19 @@ let duration=Number(prod.Preparation_Duration)||1
 let expires=prepared+(duration*3600000)
 
 let timers=JSON.parse(localStorage.getItem("timers")||"[]")
-
 const timer={
 id:Date.now(),
+
 section:section,
 product:prod.Product_Name_EN,
-qty:qty,
-prepared:prepared,
-expires:expires,
+
+duration:Number(prod.Preparation_Duration)||1,
+
+quantity:qty,
+
+preparedTime:prepared,
+expirationTime:expires,
+
 version:1,
 device:DEVICE
 }
