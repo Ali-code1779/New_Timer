@@ -10,19 +10,14 @@ from{opacity:0;transform:translateY(5px)}
 to{opacity:1;transform:translateY(0)}
 }
 
-/* TOOLBAR */
-
 .toolbar{
 display:flex;
 gap:10px;
-align-items:center;
 flex-wrap:wrap;
 margin-bottom:15px
 }
 
-.search-input{
-max-width:220px
-}
+.search-input{max-width:220px}
 
 .toolbar-btn{
 border:none;
@@ -37,8 +32,6 @@ color:white
 .toolbar-btn.secondary{
 background:#6c757d
 }
-
-/* SECTIONS */
 
 .sections-grid{
 display:none;
@@ -59,8 +52,6 @@ color:white
 .section-btn.active{
 outline:3px solid #00000033
 }
-
-/* TABLE */
 
 .products-table{
 background:#fff;
@@ -111,20 +102,15 @@ cursor:pointer
 
 <div class="toolbar">
 
-<input id="productSearch"
-class="form-control search-input"
-placeholder="Search">
+<input id="productSearch" class="form-control search-input" placeholder="Search">
 
 <button id="btnAll" class="toolbar-btn">All</button>
 
-<button id="btnSections" class="toolbar-btn secondary">
-Sections
-</button>
+<button id="btnSections" class="toolbar-btn secondary">Sections</button>
 
 </div>
 
 <div id="sectionsBar" class="sections-grid"></div>
-
 
 <div class="products-table">
 
@@ -161,6 +147,22 @@ Sections
 <script>
 (function(){
 
+/* ===============================
+CONFIG
+=============================== */
+
+const SECRET="RESTAURANTS_ALARM_SYSTEM_DB1"
+
+const SERVER="https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec"
+
+const BRANCH = localStorage.getItem("branch") || "default"
+
+const DEVICE = localStorage.getItem("deviceId") || crypto.randomUUID()
+
+localStorage.setItem("deviceId",DEVICE)
+
+let lastSync=0
+
 let products=[]
 let settings=[]
 let currentSection="all"
@@ -172,7 +174,9 @@ const sectionColors=[
 ]
 
 
-/* LOAD PRODUCTS */
+/* ===============================
+LOAD PRODUCTS
+=============================== */
 
 function loadProducts(){
 
@@ -188,21 +192,22 @@ renderTable()
 }
 
 
-/* GET SECTION SETTINGS */
+/* ===============================
+SECTION SETTINGS
+=============================== */
 
 function getSectionSettings(section){
 return settings.find(s=>s.section===section) || {}
 }
-
-
-/* GET PRODUCT SECTION */
 
 function getProductSection(p){
 return p.Section || p.section || "Other"
 }
 
 
-/* RENDER SECTIONS */
+/* ===============================
+RENDER SECTIONS
+=============================== */
 
 function renderSections(){
 
@@ -225,12 +230,9 @@ if(sec===currentSection)
 btn.classList.add("active")
 
 btn.onclick=()=>{
-
 currentSection=sec
-
 renderSections()
 renderTable()
-
 }
 
 bar.appendChild(btn)
@@ -240,21 +242,16 @@ bar.appendChild(btn)
 }
 
 
-/* FILTER PRODUCTS */
+/* ===============================
+FILTER PRODUCTS
+=============================== */
 
 function getFiltered(){
 
 let list=[...products]
 
-if(currentSection!=="all"){
-
-list=list.filter(p=>{
-
-return getProductSection(p)===currentSection
-
-})
-
-}
+if(currentSection!=="all")
+list=list.filter(p=>getProductSection(p)===currentSection)
 
 if(search){
 
@@ -271,37 +268,32 @@ return list
 }
 
 
-/* RENDER TABLE */
+/* ===============================
+RENDER TABLE
+=============================== */
 
 function renderTable(){
 
 const body=document.getElementById("productsBody")
-
 const list=getFiltered()
 
 body.innerHTML=""
 
 if(!list.length){
-
 body.innerHTML=`<tr><td colspan="7">No Products</td></tr>`
 return
-
 }
 
 list.forEach((p,i)=>{
 
 const section=getProductSection(p)
-
 const s=getSectionSettings(section)
 
 const tr=document.createElement("tr")
 
 tr.innerHTML=`
-
 <td>${section}</td>
-
 <td>${p.Product_Name_EN || ""}</td>
-
 <td>${p.Preparation_Duration || ""}</td>
 
 <td>
@@ -325,7 +317,6 @@ ${s.manualExpiry ?
 <td>
 <button class="add-btn" onclick="addTimer(${i},this)">➕</button>
 </td>
-
 `
 
 body.appendChild(tr)
@@ -335,25 +326,20 @@ body.appendChild(tr)
 }
 
 
-/* ADD TIMER */
+/* ===============================
+ADD TIMER
+=============================== */
 
 window.addTimer=function(i,btn){
 
 const list=getFiltered()
-
 const prod=list[i]
-
 const section=getProductSection(prod)
-
 const s=getSectionSettings(section)
 
 let qty=1
 let preparedTime=Date.now()
 let expirationTime=0
-let dateMode=false
-
-
-/* quantity */
 
 if(s.manualQty){
 
@@ -366,77 +352,62 @@ return
 
 }
 
-
-/* preparation date */
-
 if(s.manualPrep){
 
 const val=document.getElementById("prep"+i).value
-
 if(!val){
 showError("Select preparation date")
 return
 }
 
-preparedTime = DateEngine.toTimestamp(val) || Date.now()
-dateMode=true
+preparedTime=new Date(val).getTime()
 
 }
-
-
-/* expiry */
 
 if(s.manualExpiry){
 
 const val=document.getElementById("exp"+i).value
-
 if(!val){
 showError("Select expiry date")
 return
 }
 
-expirationTime = DateEngine.toTimestamp(val) || preparedTime
-dateMode=true
+expirationTime=new Date(val).getTime()
 
 }else{
 
-let duration = Number(prod.Preparation_Duration) || 1
+let duration=Number(prod.Preparation_Duration)||1
 
-let ms = duration * 3600000
+let ms=duration*3600000
 
-if(s.timeUnit==="minutes")
-ms = duration * 60000
+if(s.timeUnit==="minutes") ms=duration*60000
+if(s.timeUnit==="days") ms=duration*86400000
 
-if(s.timeUnit==="days")
-ms = duration * 86400000
-
-expirationTime = preparedTime + ms
+expirationTime=preparedTime+ms
 
 }
 
 
-let timers=
-JSON.parse(localStorage.getItem("timers")||"[]")
+/* SAVE LOCAL */
 
-timers.push({
+let timers=JSON.parse(localStorage.getItem("timers")||"[]")
 
+const timer={
 id:Date.now(),
 section:section,
 product:prod.Product_Name_EN,
-duration: Number(prod.Preparation_Duration) || 0,
-quantity:qty,
+qty:qty,
+prepared:preparedTime,
+expires:expirationTime,
+version:1,
+device:DEVICE
+}
 
-preparedTime:preparedTime,
-expirationTime:expirationTime,
-
-dateMode:dateMode,
-
-soundEnabled:s.soundEnabled,
-repeatAlert:s.repeatAlert
-
-})
+timers.push(timer)
 
 localStorage.setItem("timers",JSON.stringify(timers))
+
+uploadTimer(timer)
 
 btn.closest("tr").remove()
 
@@ -446,21 +417,81 @@ document.dispatchEvent(new Event("dataSynced"))
 
 }
 
+
+/* ===============================
+UPLOAD TIMER
+=============================== */
+
 async function uploadTimer(timer){
+
+try{
 
 await fetch(SERVER,{
 method:"POST",
+headers:{ "Content-Type":"application/json" },
 body:JSON.stringify({
+secret:SECRET,
 action:"addTimer",
-branch:localStorage.getItem("branch"),
+branch:BRANCH,
 timer:timer
 })
 })
 
+}catch(err){
+console.log("Upload error",err)
 }
-  setInterval(loadTimers,5000)
-  
-/* MESSAGES */
+
+}
+
+
+/* ===============================
+SYNC FROM SERVER
+=============================== */
+
+async function syncFromServer(){
+
+try{
+
+const res=await fetch(SERVER+"?action=sync&branch="+BRANCH+"&last="+lastSync)
+
+const data=await res.json()
+
+if(data.timers){
+
+let timers=JSON.parse(localStorage.getItem("timers")||"[]")
+
+data.timers.forEach(t=>{
+if(!timers.find(x=>x.id===t.id))
+timers.push(t)
+})
+
+localStorage.setItem("timers",JSON.stringify(timers))
+
+document.dispatchEvent(new Event("dataSynced"))
+
+}
+
+lastSync=data.serverTime || lastSync
+
+}catch(err){
+console.log("Sync error",err)
+}
+
+}
+
+
+/* ===============================
+SYNC LOOP
+=============================== */
+
+function startSync(){
+setInterval(syncFromServer,3000)
+}
+
+
+/* ===============================
+MESSAGES
+=============================== */
 
 function showSuccess(msg){
 const el=document.getElementById("successMsg")
@@ -475,40 +506,39 @@ setTimeout(()=>el.innerText="",2000)
 }
 
 
-/* EVENTS */
+/* ===============================
+EVENTS
+=============================== */
 
 document.getElementById("productSearch")
 .addEventListener("input",e=>{
-
 search=e.target.value
 renderTable()
-
 })
 
-
 document.getElementById("btnAll").onclick=()=>{
-
 currentSection="all"
 renderSections()
 renderTable()
-
 }
-
 
 document.getElementById("btnSections").onclick=()=>{
-
 const bar=document.getElementById("sectionsBar")
-
 bar.style.display=
-bar.style.display==="flex" ? "none" : "flex"
-
+bar.style.display==="flex"?"none":"flex"
 }
 
 
-/* INIT */
+/* ===============================
+INIT
+=============================== */
 
 function init(){
+
 loadProducts()
+syncFromServer()
+startSync()
+
 }
 
 document.addEventListener("pageLoaded",init)
