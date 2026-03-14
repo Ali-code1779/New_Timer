@@ -79,7 +79,6 @@ text-align:center
 }
 
 .qty-input{width:70px;text-align:center}
-.date-input{width:140px}
 
 .add-btn{
 background:#16a34a;
@@ -122,15 +121,13 @@ cursor:pointer
 <th>Product</th>
 <th>Duration</th>
 <th>Qty</th>
-<th>Prep Date</th>
-<th>Expiry Date</th>
 <th>Add</th>
 </tr>
 </thead>
 
 <tbody id="productsBody">
 <tr>
-<td colspan="7">Loading...</td>
+<td colspan="5">Loading...</td>
 </tr>
 </tbody>
 
@@ -146,10 +143,6 @@ cursor:pointer
 
 <script>
 (function(){
-
-/* ===============================
-CONFIG
-=============================== */
 
 const SECRET="RESTAURANTS_ALARM_SYSTEM_DB1"
 
@@ -173,24 +166,28 @@ const sectionColors=[
 "#3b82f6","#6366f1","#8b5cf6","#ec4899"
 ]
 
-
 /* ===============================
 LOAD PRODUCTS
 =============================== */
 
 function loadProducts(){
 
-products=(window.DataStore && DataStore.products) ||
-JSON.parse(localStorage.getItem("products")||"[]")
+products = JSON.parse(localStorage.getItem("products")||"[]")
+settings = JSON.parse(localStorage.getItem("sectionsSettings")||"[]")
 
-settings=
-JSON.parse(localStorage.getItem("sectionsSettings")||"[]")
+if(!products.length){
+
+document.getElementById("productsBody").innerHTML=
+"<tr><td colspan='5'>⚠️ No products found. Open <b>Show Products</b> page first.</td></tr>"
+
+return
+
+}
 
 renderSections()
 renderTable()
 
 }
-
 
 /* ===============================
 SECTION SETTINGS
@@ -203,7 +200,6 @@ return settings.find(s=>s.section===section) || {}
 function getProductSection(p){
 return p.Section || p.section || "Other"
 }
-
 
 /* ===============================
 RENDER SECTIONS
@@ -223,11 +219,7 @@ const btn=document.createElement("button")
 btn.textContent=sec
 btn.className="section-btn"
 
-btn.style.background=
-sectionColors[i % sectionColors.length]
-
-if(sec===currentSection)
-btn.classList.add("active")
+btn.style.background=sectionColors[i % sectionColors.length]
 
 btn.onclick=()=>{
 currentSection=sec
@@ -241,9 +233,8 @@ bar.appendChild(btn)
 
 }
 
-
 /* ===============================
-FILTER PRODUCTS
+FILTER
 =============================== */
 
 function getFiltered(){
@@ -267,9 +258,8 @@ return list
 
 }
 
-
 /* ===============================
-RENDER TABLE
+TABLE
 =============================== */
 
 function renderTable(){
@@ -280,43 +270,32 @@ const list=getFiltered()
 body.innerHTML=""
 
 if(!list.length){
-body.innerHTML=`<tr><td colspan="7">No Products</td></tr>`
+
+body.innerHTML="<tr><td colspan='5'>No Products</td></tr>"
 return
+
 }
 
 list.forEach((p,i)=>{
 
 const section=getProductSection(p)
-const s=getSectionSettings(section)
 
 const tr=document.createElement("tr")
 
 tr.innerHTML=`
+
 <td>${section}</td>
 <td>${p.Product_Name_EN || ""}</td>
 <td>${p.Preparation_Duration || ""}</td>
 
 <td>
-${s.manualQty ?
-`<input type="number" min="1" class="qty-input" id="qty${i}">`
-:`1`}
-</td>
-
-<td>
-${s.manualPrep ?
-`<input type="date" class="date-input" id="prep${i}">`
-:`Auto`}
-</td>
-
-<td>
-${s.manualExpiry ?
-`<input type="date" class="date-input" id="exp${i}">`
-:`Auto`}
+<input type="number" class="qty-input" id="qty${i}" value="1">
 </td>
 
 <td>
 <button class="add-btn" onclick="addTimer(${i},this)">➕</button>
 </td>
+
 `
 
 body.appendChild(tr)
@@ -324,7 +303,6 @@ body.appendChild(tr)
 })
 
 }
-
 
 /* ===============================
 ADD TIMER
@@ -335,60 +313,14 @@ window.addTimer=function(i,btn){
 const list=getFiltered()
 const prod=list[i]
 const section=getProductSection(prod)
-const s=getSectionSettings(section)
 
-let qty=1
-let preparedTime=Date.now()
-let expirationTime=0
+let qty=parseInt(document.getElementById("qty"+i).value)||1
 
-if(s.manualQty){
-
-qty=parseInt(document.getElementById("qty"+i).value)
-
-if(!qty || qty<1){
-showError("Enter quantity")
-return
-}
-
-}
-
-if(s.manualPrep){
-
-const val=document.getElementById("prep"+i).value
-if(!val){
-showError("Select preparation date")
-return
-}
-
-preparedTime=new Date(val).getTime()
-
-}
-
-if(s.manualExpiry){
-
-const val=document.getElementById("exp"+i).value
-if(!val){
-showError("Select expiry date")
-return
-}
-
-expirationTime=new Date(val).getTime()
-
-}else{
+let prepared=Date.now()
 
 let duration=Number(prod.Preparation_Duration)||1
 
-let ms=duration*3600000
-
-if(s.timeUnit==="minutes") ms=duration*60000
-if(s.timeUnit==="days") ms=duration*86400000
-
-expirationTime=preparedTime+ms
-
-}
-
-
-/* SAVE LOCAL */
+let expires=prepared+(duration*3600000)
 
 let timers=JSON.parse(localStorage.getItem("timers")||"[]")
 
@@ -397,8 +329,8 @@ id:Date.now(),
 section:section,
 product:prod.Product_Name_EN,
 qty:qty,
-prepared:preparedTime,
-expires:expirationTime,
+prepared:prepared,
+expires:expires,
 version:1,
 device:DEVICE
 }
@@ -413,13 +345,10 @@ btn.closest("tr").remove()
 
 showSuccess("Timer Added")
 
-document.dispatchEvent(new Event("dataSynced"))
-
 }
 
-
 /* ===============================
-UPLOAD TIMER
+UPLOAD
 =============================== */
 
 async function uploadTimer(timer){
@@ -438,14 +367,15 @@ timer:timer
 })
 
 }catch(err){
+
 console.log("Upload error",err)
-}
 
 }
 
+}
 
 /* ===============================
-SYNC FROM SERVER
+SYNC
 =============================== */
 
 async function syncFromServer(){
@@ -456,55 +386,33 @@ const res=await fetch(SERVER+"?action=sync&branch="+BRANCH+"&last="+lastSync)
 
 const data=await res.json()
 
-if(data.timers){
-
-let timers=JSON.parse(localStorage.getItem("timers")||"[]")
-
-data.timers.forEach(t=>{
-if(!timers.find(x=>x.id===t.id))
-timers.push(t)
-})
-
-localStorage.setItem("timers",JSON.stringify(timers))
-
-document.dispatchEvent(new Event("dataSynced"))
-
-}
-
 lastSync=data.serverTime || lastSync
 
 }catch(err){
+
 console.log("Sync error",err)
-}
 
 }
 
-
-/* ===============================
-SYNC LOOP
-=============================== */
+}
 
 function startSync(){
-setInterval(syncFromServer,3000)
+setInterval(syncFromServer,5000)
 }
-
 
 /* ===============================
 MESSAGES
 =============================== */
 
 function showSuccess(msg){
+
 const el=document.getElementById("successMsg")
+
 el.innerText=msg
+
 setTimeout(()=>el.innerText="",1500)
-}
 
-function showError(msg){
-const el=document.getElementById("errorMsg")
-el.innerText=msg
-setTimeout(()=>el.innerText="",2000)
 }
-
 
 /* ===============================
 EVENTS
@@ -528,7 +436,6 @@ bar.style.display=
 bar.style.display==="flex"?"none":"flex"
 }
 
-
 /* ===============================
 INIT
 =============================== */
@@ -541,7 +448,7 @@ startSync()
 
 }
 
-document.addEventListener("pageLoaded",init)
+document.addEventListener("DOMContentLoaded",init)
 
 })();
 </script>
