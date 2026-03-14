@@ -74,7 +74,10 @@ border-top:1px solid #e3e6ef;
 text-align:center
 }
 
-.qty-input{width:70px;text-align:center}
+.qty-input{
+width:70px;
+text-align:center
+}
 
 .add-btn{
 background:#16a34a;
@@ -127,7 +130,7 @@ margin-top:10px
 
 <tbody id="productsBody">
 <tr>
-<td colspan="5">Loading products...</td>
+<td colspan="5">Loading...</td>
 </tr>
 </tbody>
 
@@ -143,11 +146,11 @@ margin-top:10px
 <script>
 (function(){
 
-const API_URL="https://script.google.com/macros/s/AKfycbyVSSPlJFT1ru3OWoOlqDzRr6lhBeiphl8GsMmN96kSPO_v5vtW28vQ-0O1LGLHDJTG/exec"
+/* ===============================
+CONFIG
+=============================== */
 
 const SERVER="https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec"
-
-const SECRET="RESTAURANTS_ALARM_SYSTEM_DB1"
 
 const BRANCH=localStorage.getItem("branch")||"default"
 
@@ -156,8 +159,8 @@ const DEVICE=localStorage.getItem("deviceId")||crypto.randomUUID()
 localStorage.setItem("deviceId",DEVICE)
 
 let products=[]
-let currentSection="all"
 let search=""
+let currentSection="all"
 
 const sectionColors=[
 "#ff6b6b","#ffa94d","#ffd43b","#69db7c",
@@ -165,20 +168,18 @@ const sectionColors=[
 ]
 
 /* ===============================
-LOAD PRODUCTS
+LOAD PRODUCTS (1ms)
 =============================== */
 
-async function loadProducts(){
+function loadProducts(){
 
-/* 1️⃣ DataStore */
+/* DataStore */
 
-if(window.DataStore && window.DataStore.products){
-
-products=window.DataStore.products
-
+if(window.DataStore && DataStore.products){
+products=[...DataStore.products]
 }
 
-/* 2️⃣ localStorage */
+/* localStorage */
 
 if(!products.length){
 
@@ -186,38 +187,12 @@ products=JSON.parse(localStorage.getItem("products")||"[]")
 
 }
 
-/* 3️⃣ API */
-
-if(!products.length){
-
-try{
-
-const res=await fetch(API_URL+"?action=getProducts")
-
-const data=await res.json()
-
-if(Array.isArray(data)){
-
-products=data.filter(p=>Object.values(p).some(v=>v))
-
-localStorage.setItem("products",JSON.stringify(products))
-
-}
-
-}catch(e){
-
-console.error("API load error",e)
-
-}
-
-}
-
-/* إذا لم توجد منتجات */
+/* لا توجد بيانات */
 
 if(!products.length){
 
 document.getElementById("productsBody").innerHTML=
-"<tr><td colspan='5'>⚠️ No products available</td></tr>"
+"<tr><td colspan='5'>⚠️ Open Products page first</td></tr>"
 
 return
 
@@ -233,13 +208,11 @@ HELPERS
 =============================== */
 
 function getProductSection(p){
-
 return p.Section||"Other"
-
 }
 
 /* ===============================
-RENDER SECTIONS
+SECTIONS
 =============================== */
 
 function renderSections(){
@@ -265,7 +238,6 @@ btn.onclick=()=>{
 currentSection=sec
 
 renderSections()
-
 renderTable()
 
 }
@@ -316,7 +288,6 @@ body.innerHTML=""
 if(!list.length){
 
 body.innerHTML="<tr><td colspan='5'>No Products</td></tr>"
-
 return
 
 }
@@ -336,7 +307,7 @@ tr.innerHTML=`
 </td>
 
 <td>
-<button class="add-btn" onclick="addTimer(${i},this)">➕</button>
+<button class="add-btn" data-i="${i}">➕</button>
 </td>
 
 `
@@ -351,15 +322,15 @@ body.appendChild(tr)
 ADD TIMER
 =============================== */
 
-window.addTimer=function(i,btn){
+function addTimer(index,btn){
 
 const list=getFiltered()
 
-const prod=list[i]
+const prod=list[index]
 
 const section=getProductSection(prod)
 
-let qty=parseInt(document.getElementById("qty"+i).value)||1
+let qty=parseInt(document.getElementById("qty"+index).value)||1
 
 let prepared=Date.now()
 
@@ -382,14 +353,20 @@ quantity:qty,
 preparedTime:prepared,
 expirationTime:expires,
 
-version:1,
-device:DEVICE
+device:DEVICE,
+branch:BRANCH
 
 }
 
 timers.push(timer)
 
 localStorage.setItem("timers",JSON.stringify(timers))
+
+/* تحديث فوري */
+
+document.dispatchEvent(new Event("dataSynced"))
+
+/* رفع للسيرفر */
 
 uploadTimer(timer)
 
@@ -400,7 +377,7 @@ showSuccess("Timer Added")
 }
 
 /* ===============================
-UPLOAD TIMER
+UPLOAD
 =============================== */
 
 async function uploadTimer(timer){
@@ -411,16 +388,15 @@ await fetch(SERVER,{
 method:"POST",
 headers:{"Content-Type":"application/json"},
 body:JSON.stringify({
-secret:SECRET,
 action:"addTimer",
 branch:BRANCH,
 timer:timer
 })
 })
 
-}catch(err){
+}catch(e){
 
-console.log("Upload error",err)
+console.log("Upload error",e)
 
 }
 
@@ -436,7 +412,9 @@ const el=document.getElementById("successMsg")
 
 el.innerText=msg
 
-setTimeout(()=>el.innerText="",1500)
+setTimeout(()=>{
+el.innerText=""
+},1500)
 
 }
 
@@ -444,8 +422,21 @@ setTimeout(()=>el.innerText="",1500)
 EVENTS
 =============================== */
 
+document.addEventListener("click",(e)=>{
+
+if(e.target.classList.contains("add-btn")){
+
+addTimer(
+parseInt(e.target.dataset.i),
+e.target
+)
+
+}
+
+})
+
 document.getElementById("productSearch")
-.addEventListener("input",e=>{
+.addEventListener("input",(e)=>{
 
 search=e.target.value
 
@@ -458,7 +449,6 @@ document.getElementById("btnAll").onclick=()=>{
 currentSection="all"
 
 renderSections()
-
 renderTable()
 
 }
@@ -477,7 +467,12 @@ bar.style.display==="flex"
 INIT
 =============================== */
 
-document.addEventListener("DOMContentLoaded",loadProducts)
+function init(){
+loadProducts()
+}
+
+document.addEventListener("pageLoaded",init)
+document.addEventListener("DOMContentLoaded",init)
 
 })();
 </script>
