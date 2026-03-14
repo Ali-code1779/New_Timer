@@ -127,7 +127,7 @@ margin-top:10px
 
 <tbody id="productsBody">
 <tr>
-<td colspan="5">Loading products...</td>
+<td colspan="5">Loading...</td>
 </tr>
 </tbody>
 
@@ -143,12 +143,6 @@ margin-top:10px
 <script>
 (function(){
 
-/* ===============================
-CONFIG
-=============================== */
-
-const API_URL="https://script.google.com/macros/s/AKfycbyVSSPlJFT1ru3OWoOlqDzRr6lhBeiphl8GsMmN96kSPO_v5vtW28vQ-0O1LGLHDJTG/exec"
-
 const SERVER="https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec"
 
 const SECRET="RESTAURANTS_ALARM_SYSTEM_DB1"
@@ -159,11 +153,6 @@ const DEVICE=localStorage.getItem("deviceId")||crypto.randomUUID()
 
 localStorage.setItem("deviceId",DEVICE)
 
-
-/* ===============================
-STATE
-=============================== */
-
 let products=[]
 let currentSection="all"
 let search=""
@@ -173,62 +162,55 @@ const sectionColors=[
 "#3b82f6","#6366f1","#8b5cf6","#ec4899"
 ]
 
-
 /* ===============================
-LOAD PRODUCTS FROM API
+LOAD PRODUCTS
 =============================== */
 
-async function loadProducts(){
+function loadProducts(){
 
-try{
+/* 1️⃣ من DataStore */
 
-const res=await fetch(API_URL)
+if(window.DataStore && window.DataStore.products){
 
-const data=await res.json()
+products=window.DataStore.products
 
-products=data.products||[]
+localStorage.setItem("products",JSON.stringify(products))
+
+}
+
+/* 2️⃣ من localStorage */
 
 if(!products.length){
 
-document.getElementById("productsBody").innerHTML=
-"<tr><td colspan='5'>No products available</td></tr>"
+products=JSON.parse(localStorage.getItem("products")||"[]")
+
+}
+
+/* 3️⃣ إعادة المحاولة إذا لم تحمل بعد */
+
+if(!products.length){
+
+setTimeout(loadProducts,500)
 
 return
 
 }
 
-/* حفظ نسخة محلية */
-
-localStorage.setItem("products",JSON.stringify(products))
-
 renderSections()
 renderTable()
 
-}catch(e){
-
-console.error(e)
-
-document.getElementById("productsBody").innerHTML=
-"<tr><td colspan='5'>⚠️ Failed to load products</td></tr>"
-
 }
-
-}
-
 
 /* ===============================
 HELPERS
 =============================== */
 
 function getProductSection(p){
-
 return p.Section || p.section || "Other"
-
 }
 
-
 /* ===============================
-RENDER SECTIONS
+SECTIONS
 =============================== */
 
 function renderSections(){
@@ -244,6 +226,7 @@ sections.forEach((sec,i)=>{
 const btn=document.createElement("button")
 
 btn.textContent=sec
+
 btn.className="section-btn"
 
 btn.style.background=sectionColors[i%sectionColors.length]
@@ -253,6 +236,7 @@ btn.onclick=()=>{
 currentSection=sec
 
 renderSections()
+
 renderTable()
 
 }
@@ -263,9 +247,8 @@ bar.appendChild(btn)
 
 }
 
-
 /* ===============================
-FILTER PRODUCTS
+FILTER
 =============================== */
 
 function getFiltered(){
@@ -289,9 +272,8 @@ return list
 
 }
 
-
 /* ===============================
-RENDER TABLE
+TABLE
 =============================== */
 
 function renderTable(){
@@ -305,6 +287,7 @@ body.innerHTML=""
 if(!list.length){
 
 body.innerHTML="<tr><td colspan='5'>No Products</td></tr>"
+
 return
 
 }
@@ -336,7 +319,6 @@ body.appendChild(tr)
 })
 
 }
-
 
 /* ===============================
 ADD TIMER
@@ -390,9 +372,8 @@ showSuccess("Timer Added")
 
 }
 
-
 /* ===============================
-UPLOAD TIMER
+UPLOAD
 =============================== */
 
 async function uploadTimer(timer){
@@ -418,7 +399,6 @@ console.log("Upload error",err)
 
 }
 
-
 /* ===============================
 MESSAGES
 =============================== */
@@ -433,12 +413,12 @@ setTimeout(()=>el.innerText="",1500)
 
 }
 
-
 /* ===============================
 EVENTS
 =============================== */
 
-document.getElementById("productSearch").addEventListener("input",e=>{
+document.getElementById("productSearch")
+.addEventListener("input",e=>{
 
 search=e.target.value
 
@@ -451,6 +431,7 @@ document.getElementById("btnAll").onclick=()=>{
 currentSection="all"
 
 renderSections()
+
 renderTable()
 
 }
@@ -463,7 +444,6 @@ bar.style.display=
 bar.style.display==="flex"?"none":"flex"
 
 }
-
 
 /* ===============================
 INIT
