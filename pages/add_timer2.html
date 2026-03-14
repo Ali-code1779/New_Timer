@@ -127,7 +127,7 @@ margin-top:10px
 
 <tbody id="productsBody">
 <tr>
-<td colspan="5">Loading...</td>
+<td colspan="5">Loading products...</td>
 </tr>
 </tbody>
 
@@ -142,6 +142,8 @@ margin-top:10px
 
 <script>
 (function(){
+
+const API_URL="https://script.google.com/macros/s/AKfycbyVSSPlJFT1ru3OWoOlqDzRr6lhBeiphl8GsMmN96kSPO_v5vtW28vQ-0O1LGLHDJTG/exec"
 
 const SERVER="https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec"
 
@@ -158,27 +160,25 @@ let currentSection="all"
 let search=""
 
 const sectionColors=[
-"#ef4444","#f97316","#f59e0b","#10b981",
-"#3b82f6","#6366f1","#8b5cf6","#ec4899"
+"#ff6b6b","#ffa94d","#ffd43b","#69db7c",
+"#4dabf7","#9775fa","#f06595","#20c997"
 ]
 
 /* ===============================
 LOAD PRODUCTS
 =============================== */
 
-function loadProducts(){
+async function loadProducts(){
 
-/* 1️⃣ من DataStore */
+/* 1️⃣ DataStore */
 
 if(window.DataStore && window.DataStore.products){
 
 products=window.DataStore.products
 
-localStorage.setItem("products",JSON.stringify(products))
-
 }
 
-/* 2️⃣ من localStorage */
+/* 2️⃣ localStorage */
 
 if(!products.length){
 
@@ -186,11 +186,38 @@ products=JSON.parse(localStorage.getItem("products")||"[]")
 
 }
 
-/* 3️⃣ إعادة المحاولة إذا لم تحمل بعد */
+/* 3️⃣ API */
 
 if(!products.length){
 
-setTimeout(loadProducts,500)
+try{
+
+const res=await fetch(API_URL+"?action=getProducts")
+
+const data=await res.json()
+
+if(Array.isArray(data)){
+
+products=data.filter(p=>Object.values(p).some(v=>v))
+
+localStorage.setItem("products",JSON.stringify(products))
+
+}
+
+}catch(e){
+
+console.error("API load error",e)
+
+}
+
+}
+
+/* إذا لم توجد منتجات */
+
+if(!products.length){
+
+document.getElementById("productsBody").innerHTML=
+"<tr><td colspan='5'>⚠️ No products available</td></tr>"
 
 return
 
@@ -206,11 +233,13 @@ HELPERS
 =============================== */
 
 function getProductSection(p){
-return p.Section || p.section || "Other"
+
+return p.Section||"Other"
+
 }
 
 /* ===============================
-SECTIONS
+RENDER SECTIONS
 =============================== */
 
 function renderSections(){
@@ -225,9 +254,9 @@ sections.forEach((sec,i)=>{
 
 const btn=document.createElement("button")
 
-btn.textContent=sec
-
 btn.className="section-btn"
+
+btn.innerText=sec
 
 btn.style.background=sectionColors[i%sectionColors.length]
 
@@ -294,13 +323,11 @@ return
 
 list.forEach((p,i)=>{
 
-const section=getProductSection(p)
-
 const tr=document.createElement("tr")
 
 tr.innerHTML=`
 
-<td>${section}</td>
+<td>${getProductSection(p)}</td>
 <td>${p.Product_Name_EN||""}</td>
 <td>${p.Preparation_Duration||""}</td>
 
@@ -373,7 +400,7 @@ showSuccess("Timer Added")
 }
 
 /* ===============================
-UPLOAD
+UPLOAD TIMER
 =============================== */
 
 async function uploadTimer(timer){
@@ -441,7 +468,8 @@ document.getElementById("btnSections").onclick=()=>{
 const bar=document.getElementById("sectionsBar")
 
 bar.style.display=
-bar.style.display==="flex"?"none":"flex"
+bar.style.display==="flex"
+?"none":"flex"
 
 }
 
