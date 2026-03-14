@@ -85,8 +85,12 @@ border-radius:8px;
 cursor:pointer
 }
 
-.success-msg{text-align:center;color:#16a34a;font-weight:700;margin-top:10px}
-.error-msg{text-align:center;color:#dc2626;font-weight:700;margin-top:10px}
+.success-msg{
+text-align:center;
+color:#16a34a;
+font-weight:700;
+margin-top:10px
+}
 
 </style>
 
@@ -123,7 +127,7 @@ cursor:pointer
 
 <tbody id="productsBody">
 <tr>
-<td colspan="5">Loading...</td>
+<td colspan="5">Loading products...</td>
 </tr>
 </tbody>
 
@@ -139,18 +143,28 @@ cursor:pointer
 <script>
 (function(){
 
-const SECRET="RESTAURANTS_ALARM_SYSTEM_DB1"
+/* ===============================
+CONFIG
+=============================== */
+
+const API_URL="https://script.google.com/macros/s/AKfycbyVSSPlJFT1ru3OWoOlqDzRr6lhBeiphl8GsMmN96kSPO_v5vtW28vQ-0O1LGLHDJTG/exec"
 
 const SERVER="https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec"
 
-const BRANCH = localStorage.getItem("branch") || "default"
+const SECRET="RESTAURANTS_ALARM_SYSTEM_DB1"
 
-const DEVICE = localStorage.getItem("deviceId") || crypto.randomUUID()
+const BRANCH=localStorage.getItem("branch")||"default"
+
+const DEVICE=localStorage.getItem("deviceId")||crypto.randomUUID()
 
 localStorage.setItem("deviceId",DEVICE)
 
+
+/* ===============================
+STATE
+=============================== */
+
 let products=[]
-let settings=[]
 let currentSection="all"
 let search=""
 
@@ -159,53 +173,59 @@ const sectionColors=[
 "#3b82f6","#6366f1","#8b5cf6","#ec4899"
 ]
 
+
 /* ===============================
-LOAD PRODUCTS
+LOAD PRODUCTS FROM API
 =============================== */
 
-function loadProducts(){
+async function loadProducts(){
 
-/* 1️⃣ محاولة القراءة من DataStore */
+try{
 
-if(window.DataStore && window.DataStore.products){
+const res=await fetch(API_URL)
 
-products = window.DataStore.products
-settings = window.DataStore.sectionsSettings || []
+const data=await res.json()
 
-}
-
-/* 2️⃣ fallback localStorage */
-
-if(!products.length){
-
-products = JSON.parse(localStorage.getItem("products")||"[]")
-settings = JSON.parse(localStorage.getItem("sectionsSettings")||"[]")
-
-}
-
-/* 3️⃣ إذا ما زالت فارغة */
+products=data.products||[]
 
 if(!products.length){
 
 document.getElementById("productsBody").innerHTML=
-"<tr><td colspan='5'>⚠️ Products not loaded yet. Open Products page first.</td></tr>"
+"<tr><td colspan='5'>No products available</td></tr>"
 
 return
 
 }
 
+/* حفظ نسخة محلية */
+
+localStorage.setItem("products",JSON.stringify(products))
+
 renderSections()
 renderTable()
 
+}catch(e){
+
+console.error(e)
+
+document.getElementById("productsBody").innerHTML=
+"<tr><td colspan='5'>⚠️ Failed to load products</td></tr>"
+
 }
 
+}
+
+
 /* ===============================
-SECTION SETTINGS
+HELPERS
 =============================== */
 
 function getProductSection(p){
+
 return p.Section || p.section || "Other"
+
 }
+
 
 /* ===============================
 RENDER SECTIONS
@@ -226,12 +246,15 @@ const btn=document.createElement("button")
 btn.textContent=sec
 btn.className="section-btn"
 
-btn.style.background=sectionColors[i % sectionColors.length]
+btn.style.background=sectionColors[i%sectionColors.length]
 
 btn.onclick=()=>{
+
 currentSection=sec
+
 renderSections()
 renderTable()
+
 }
 
 bar.appendChild(btn)
@@ -240,8 +263,9 @@ bar.appendChild(btn)
 
 }
 
+
 /* ===============================
-FILTER
+FILTER PRODUCTS
 =============================== */
 
 function getFiltered(){
@@ -265,8 +289,9 @@ return list
 
 }
 
+
 /* ===============================
-TABLE
+RENDER TABLE
 =============================== */
 
 function renderTable(){
@@ -293,8 +318,8 @@ const tr=document.createElement("tr")
 tr.innerHTML=`
 
 <td>${section}</td>
-<td>${p.Product_Name_EN || ""}</td>
-<td>${p.Preparation_Duration || ""}</td>
+<td>${p.Product_Name_EN||""}</td>
+<td>${p.Preparation_Duration||""}</td>
 
 <td>
 <input type="number" class="qty-input" id="qty${i}" value="1">
@@ -311,6 +336,7 @@ body.appendChild(tr)
 })
 
 }
+
 
 /* ===============================
 ADD TIMER
@@ -342,7 +368,6 @@ section:section,
 product:prod.Product_Name_EN,
 
 duration:duration,
-
 quantity:qty,
 
 preparedTime:prepared,
@@ -365,8 +390,9 @@ showSuccess("Timer Added")
 
 }
 
+
 /* ===============================
-UPLOAD
+UPLOAD TIMER
 =============================== */
 
 async function uploadTimer(timer){
@@ -375,7 +401,7 @@ try{
 
 await fetch(SERVER,{
 method:"POST",
-headers:{ "Content-Type":"application/json" },
+headers:{"Content-Type":"application/json"},
 body:JSON.stringify({
 secret:SECRET,
 action:"addTimer",
@@ -392,6 +418,7 @@ console.log("Upload error",err)
 
 }
 
+
 /* ===============================
 MESSAGES
 =============================== */
@@ -406,39 +433,43 @@ setTimeout(()=>el.innerText="",1500)
 
 }
 
+
 /* ===============================
 EVENTS
 =============================== */
 
-document.getElementById("productSearch")
-.addEventListener("input",e=>{
+document.getElementById("productSearch").addEventListener("input",e=>{
+
 search=e.target.value
+
 renderTable()
+
 })
 
 document.getElementById("btnAll").onclick=()=>{
+
 currentSection="all"
+
 renderSections()
 renderTable()
+
 }
 
 document.getElementById("btnSections").onclick=()=>{
+
 const bar=document.getElementById("sectionsBar")
+
 bar.style.display=
 bar.style.display==="flex"?"none":"flex"
+
 }
+
 
 /* ===============================
 INIT
 =============================== */
 
-function init(){
-
-loadProducts()
-
-}
-
-document.addEventListener("DOMContentLoaded",init)
+document.addEventListener("DOMContentLoaded",loadProducts)
 
 })();
 </script>
