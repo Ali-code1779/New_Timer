@@ -143,6 +143,12 @@ margin-top:10px
 <script>
 (function(){
 
+const SERVER="https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec"
+
+const BRANCH=localStorage.getItem("branch")||"default"
+
+let lastSync=0
+
 const API_URL="https://script.google.com/macros/s/AKfycbyVSSPlJFT1ru3OWoOlqDzRr6lhBeiphl8GsMmN96kSPO_v5vtW28vQ-0O1LGLHDJTG/exec"
 
 const SERVER="https://script.google.com/macros/s/AKfycbznthkSS3Ng6gZpps76qt9GS-Njdi3renpn4fhlmsdzGgHhI3bJql91_rCthCM0EZIf/exec"
