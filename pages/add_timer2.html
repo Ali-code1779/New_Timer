@@ -49,10 +49,6 @@ font-weight:600;
 color:white
 }
 
-.section-btn.active{
-outline:3px solid #00000033
-}
-
 .products-table{
 background:#fff;
 border-radius:12px;
@@ -136,7 +132,6 @@ cursor:pointer
 </div>
 
 <div id="successMsg" class="success-msg"></div>
-<div id="errorMsg" class="error-msg"></div>
 
 </div>
 
@@ -154,8 +149,6 @@ const DEVICE = localStorage.getItem("deviceId") || crypto.randomUUID()
 
 localStorage.setItem("deviceId",DEVICE)
 
-let lastSync=0
-
 let products=[]
 let settings=[]
 let currentSection="all"
@@ -172,13 +165,30 @@ LOAD PRODUCTS
 
 function loadProducts(){
 
+/* 1️⃣ محاولة القراءة من DataStore */
+
+if(window.DataStore && window.DataStore.products){
+
+products = window.DataStore.products
+settings = window.DataStore.sectionsSettings || []
+
+}
+
+/* 2️⃣ fallback localStorage */
+
+if(!products.length){
+
 products = JSON.parse(localStorage.getItem("products")||"[]")
 settings = JSON.parse(localStorage.getItem("sectionsSettings")||"[]")
+
+}
+
+/* 3️⃣ إذا ما زالت فارغة */
 
 if(!products.length){
 
 document.getElementById("productsBody").innerHTML=
-"<tr><td colspan='5'>⚠️ No products found. Open <b>Show Products</b> page first.</td></tr>"
+"<tr><td colspan='5'>⚠️ Products not loaded yet. Open Products page first.</td></tr>"
 
 return
 
@@ -193,10 +203,6 @@ renderTable()
 SECTION SETTINGS
 =============================== */
 
-function getSectionSettings(section){
-return settings.find(s=>s.section===section) || {}
-}
-
 function getProductSection(p){
 return p.Section || p.section || "Other"
 }
@@ -208,6 +214,7 @@ RENDER SECTIONS
 function renderSections(){
 
 const bar=document.getElementById("sectionsBar")
+
 bar.innerHTML=""
 
 const sections=[...new Set(products.map(p=>getProductSection(p)))]
@@ -265,6 +272,7 @@ TABLE
 function renderTable(){
 
 const body=document.getElementById("productsBody")
+
 const list=getFiltered()
 
 body.innerHTML=""
@@ -311,7 +319,9 @@ ADD TIMER
 window.addTimer=function(i,btn){
 
 const list=getFiltered()
+
 const prod=list[i]
+
 const section=getProductSection(prod)
 
 let qty=parseInt(document.getElementById("qty"+i).value)||1
@@ -323,13 +333,15 @@ let duration=Number(prod.Preparation_Duration)||1
 let expires=prepared+(duration*3600000)
 
 let timers=JSON.parse(localStorage.getItem("timers")||"[]")
+
 const timer={
+
 id:Date.now(),
 
 section:section,
 product:prod.Product_Name_EN,
 
-duration:Number(prod.Preparation_Duration)||1,
+duration:duration,
 
 quantity:qty,
 
@@ -338,6 +350,7 @@ expirationTime:expires,
 
 version:1,
 device:DEVICE
+
 }
 
 timers.push(timer)
@@ -377,32 +390,6 @@ console.log("Upload error",err)
 
 }
 
-}
-
-/* ===============================
-SYNC
-=============================== */
-
-async function syncFromServer(){
-
-try{
-
-const res=await fetch(SERVER+"?action=sync&branch="+BRANCH+"&last="+lastSync)
-
-const data=await res.json()
-
-lastSync=data.serverTime || lastSync
-
-}catch(err){
-
-console.log("Sync error",err)
-
-}
-
-}
-
-function startSync(){
-setInterval(syncFromServer,5000)
 }
 
 /* ===============================
@@ -448,8 +435,6 @@ INIT
 function init(){
 
 loadProducts()
-syncFromServer()
-startSync()
 
 }
 
